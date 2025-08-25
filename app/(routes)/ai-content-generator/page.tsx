@@ -1,5 +1,5 @@
 'use client'
-import React from 'react'
+import React, { useCallback, useRef } from 'react'
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from '@/components/ui/button'
 import { Loader2, Search, Settings, Settings2 } from 'lucide-react';
@@ -28,8 +28,15 @@ function AiContentGenerator() {
     const [userInput, setUserInput] = React.useState<string>('');
     const [loading, setLoading] = React.useState<boolean>(false);
     const [content, setContent] = React.useState<Content|null>(null);
+    const isGenerating = useRef(false);
 
-    const onGenrate = async () => {
+    const onGenrate = useCallback(async () => {
+        if (isGenerating.current) {
+            console.log("⏩ Ignored duplicate trigger");
+            return;
+        }
+        isGenerating.current = true;
+
         try {
             setLoading(true);
             setContent(null)
@@ -62,8 +69,9 @@ function AiContentGenerator() {
             console.error("Error fetching outlier data:", error);
         } finally {
             setLoading(false);
+            isGenerating.current = false;
         }
-    };
+    },[userInput]);
   return (
     <div className="max-w-6xl mx-auto px-4 py-12">
             {/* Hero Section */}
