@@ -91,11 +91,11 @@
 
 @layer utilities {
   .gradient-text {
-    @apply bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 bg-clip-text text-transparent;
+    @apply bg-gradient-to-r from-[#ff7917] via-[#584424] to-[#479cb6] bg-clip-text text-transparent;
   }
 
   .gradient-bg {
-    @apply bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500;
+    @apply bg-gradient-to-br from-[#ff7917] via-[#584424] to-[#479cb6];
   }
 
   .glass-card {
@@ -121,6 +121,6 @@
 }
 
 .hover-glow:hover {
-  filter: drop-shadow(0 0 30px rgba(59, 130, 246, 0.7));
+  filter: drop-shadow(0 0 30px rgba(255, 121, 23, 0.7)); /* glow matches orange */
   transform: translateY(-2px);
 }
