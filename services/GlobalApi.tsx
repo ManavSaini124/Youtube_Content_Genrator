@@ -3,10 +3,11 @@ export const RunStatus = async (id: string) => {
     const baseUrl = "http://127.0.0.1:8288";
     const headers = {
       Authorization: `Bearer ${process.env.NEXT_PUBLIC_INNGEST_SIGNING_KEY}`,
+      "Content-Type": "json",
     };
 
     // 1. Try to fetch as if it's a runId directly(Why the hell its not returning json)
-    let response = await fetch(`${baseUrl}/${id}/runs`, { headers });
+    let response = await fetch(`${baseUrl}/v1/events/${id}/runs`, { headers });
     console.log("Initial fetch response:", response);
 
     // If the response isn't JSON, assume it's actually an eventId
