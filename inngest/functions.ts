@@ -381,90 +381,90 @@ export const GenrateAiContent = inngest.createFunction(
   async({event, step})=>{
     const {userInput, userEmail} = await event.data;
 
-    await step.run('wait', async()=>{
-      await new Promise(resolve => setTimeout(resolve, 6000));
-    })
-
-    return "Content generation is paused for now.";
-
-    // to genrate title , discription , tags and thumbnail prompt
-    // const gerateAiContent = await step.run(
-    //   'generateContent',
-    //   async()=>{
-    //     const completion = await openai.chat.completions.create({
-    //       model: AiModelForContent,
-    //       messages: [
-    //         {
-    //           role: 'user',
-    //           content: contentGentrationPrompt(userInput),
-    //         }
-    //       ],
-    //     });
-
-    //     const RawJson = completion.choices[0].message.content;
-    //     console.log("Generated Content:", RawJson);
-    //     const formatJsonString = RawJson?.replace('```json', "").trim().replace('```', '').trim(); // remove new lines
-    //     const formatedJson = formatJsonString && JSON.parse(formatJsonString)
-    //     return formatedJson;
-    //   }
-    // )
-    // TO genrate thumbnail prompt
-    // const generateImage = await step.run(
-    //   'generateImage',
-    //   async ()=>{
-    //       // const input = {
-    //       //   prompt: generateThumbnailPrompt,
-    //       //   aspect_ratio: "16:9",
-    //       //   output_format: "png",
-    //       //   safety_filter_level: 'block_only_high'
-    //       // };
-
-    //       // const output = await replicate.run("stability-ai/stable-diffusion", {
-    //       //   input
-    //       // });
-    //       // console.log(output);
-    //       //  //@ts-ignore
-    //       // return output.url()
-    //       console.log("generateImage started ---------------------")
-    //       const base64Image = await CloudflareGenerateImage(gerateAiContent?.image_prompts[0].prompt ?? "");
-    //       // const base64Image = await GoogleGenerateImage(generateThumbnailPrompt ?? ""); // DOESNT WORK
-    //       console.log("generateImage DONE ---------------------")
-    //       console.log("base64Image ---------------------",base64Image)
-    //       return base64Image;
-    //     }
-    //   )
-
-    // save image to cloud
-    // const uploadThumbnail = await step.run('Upload Thubnail',async()=>{
-    //   const thumbnailUrl = await imageKit.upload({
-    //     // file: generateImage?.buffer??'',
-    //     file: Buffer.isBuffer(generateImage) ? generateImage : Buffer.from(generateImage.data ?? generateImage),
-    //     fileName: Date.now().toString()+'.png',
-    //     isPublished: true,
-    //     useUniqueFileName: false,
-    //   }) as any;
-
-    //   return thumbnailUrl.url;
+    // await step.run('wait', async()=>{
+    //   await new Promise(resolve => setTimeout(resolve, 6000));
     // })
 
-    // const saveContent = await step.run(
-    //   'save to Database',
-    //   async()=>{
-    //     const result = await db.insert(AiContentTable).values({
-    //       content: gerateAiContent,
-    //       createdAt: moment().format('YYYY-MM-DD'),
-    //       thumbnailUrl: uploadThumbnail,
-    //       userEmail: userEmail,
-    //       userInput: userInput,
-    //       //@ts-ignore
-    //     }).returning(AiContentTable)
+    // return "Content generation is paused for now.";
 
-    //     console.log("result -from saveContent --------------------",result)
+    // to genrate title , discription , tags and thumbnail prompt
+    const gerateAiContent = await step.run(
+      'generateContent',
+      async()=>{
+        const completion = await openai.chat.completions.create({
+          model: AiModelForContent,
+          messages: [
+            {
+              role: 'user',
+              content: contentGentrationPrompt(userInput),
+            }
+          ],
+        });
 
-    //     return result;
-    //   }
-    // )
-    // return saveContent;
+        const RawJson = completion.choices[0].message.content;
+        console.log("Generated Content:", RawJson);
+        const formatJsonString = RawJson?.replace('```json', "").trim().replace('```', '').trim(); // remove new lines
+        const formatedJson = formatJsonString && JSON.parse(formatJsonString)
+        return formatedJson;
+      }
+    )
+    // TO genrate thumbnail prompt
+    const generateImage = await step.run(
+      'generateImage',
+      async ()=>{
+          // const input = {
+          //   prompt: generateThumbnailPrompt,
+          //   aspect_ratio: "16:9",
+          //   output_format: "png",
+          //   safety_filter_level: 'block_only_high'
+          // };
+
+          // const output = await replicate.run("stability-ai/stable-diffusion", {
+          //   input
+          // });
+          // console.log(output);
+          //  //@ts-ignore
+          // return output.url()
+          console.log("generateImage started ---------------------")
+          const base64Image = await CloudflareGenerateImage(gerateAiContent?.image_prompts[0].prompt ?? "");
+          // const base64Image = await GoogleGenerateImage(generateThumbnailPrompt ?? ""); // DOESNT WORK
+          console.log("generateImage DONE ---------------------")
+          console.log("base64Image ---------------------",base64Image)
+          return base64Image;
+        }
+      )
+
+    // save image to cloud
+    const uploadThumbnail = await step.run('Upload Thubnail',async()=>{
+      const thumbnailUrl = await imageKit.upload({
+        // file: generateImage?.buffer??'',
+        file: Buffer.isBuffer(generateImage) ? generateImage : Buffer.from(generateImage.data ?? generateImage),
+        fileName: Date.now().toString()+'.png',
+        isPublished: true,
+        useUniqueFileName: false,
+      }) as any;
+
+      return thumbnailUrl.url;
+    })
+
+    const saveContent = await step.run(
+      'save to Database',
+      async()=>{
+        const result = await db.insert(AiContentTable).values({
+          content: gerateAiContent,
+          createdAt: moment().format('YYYY-MM-DD'),
+          thumbnailUrl: uploadThumbnail,
+          userEmail: userEmail,
+          userInput: userInput,
+          //@ts-ignore
+        }).returning(AiContentTable)
+
+        console.log("result -from saveContent --------------------",result)
+
+        return result;
+      }
+    )
+    return saveContent;
   }
 )
 
