@@ -2,7 +2,7 @@ export const RunStatus = async (id: string) => {
   try {
     const baseUrl = process.env.NEXT_PUBLIC_INNGEST_SERVER_URL;
     const headers = {
-      Authorization: `Bearer ${process.env.NEXT_PUBLIC_INNGEST_SIGNING_KEY}`,
+      Authorization: `Bearer ${process.env.NEXT_PUBLIC_INNGEST_EVENT_KEY_CLOUD}`,
       "Content-Type": "json",
     };
 
