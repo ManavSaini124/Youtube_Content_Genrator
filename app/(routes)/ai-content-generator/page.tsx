@@ -69,7 +69,8 @@ function AiContentGenerator() {
 
                 if (status && status[0]?.status === 'Completed') {
                     console.log("Run completed, data:", status[0]?.output?.[0]);
-                    setContent(status[0]?.output?.[0]); // Set the generated content
+                    const generatedContent = status[0]?.output?.[0];
+                    setContent(generatedContent); // Set the generated content
                     setLoading(false);
                     isGenerating.current = false;
                     return; // Stop polling
@@ -89,9 +90,8 @@ function AiContentGenerator() {
         } catch (err) {
             console.error("Error fetching run status:", err);
             setError('Network error while fetching run status');
-            isGenerating.current = false;
-        } finally{
             setLoading(false);
+            isGenerating.current = false;
         }
     };
 
