@@ -280,7 +280,6 @@ export const GenrateAiThumbnail = inngest.createFunction(
             //   output_format: "png",
             //   safety_filter_level: 'block_only_high'
             // };
-
             // const output = await replicate.run("stability-ai/stable-diffusion", {
             //   input
             // });

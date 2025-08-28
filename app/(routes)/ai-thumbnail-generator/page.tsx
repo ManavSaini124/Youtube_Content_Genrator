@@ -1,6 +1,6 @@
 "use client"
 import { ArrowUp, ImagePlus, Loader2, User, X } from 'lucide-react'
-import React, { use, useState } from 'react'
+import React, { use, useEffect, useRef, useState } from 'react'
 import { motion, AnimatePresence } from "framer-motion"
 import axios from 'axios';
 import { RunStatus } from '@/services/GlobalApi';
@@ -15,6 +15,9 @@ function AiThumbnailGenerator() {
     const [referenceUserImagePreview, setReferenceUserImagePreview] = useState<string>('')
     const [loading, setLoading] = useState<boolean>(false)
     const [outputThumbnailImage, setOutputThumbnailImage] = useState<string>('')
+    const [eventId, setEventId] = useState<string | null>(null);
+    const isGenerating = useRef(false);
+
     
     const onHandleFileChange = (field: string, e: any) => {
         const selectedFile = e.target.files?.[0];
@@ -37,37 +40,73 @@ function AiThumbnailGenerator() {
     }
 
     const onSubmit = async() =>{
-        if (loading) return;
+        if (isGenerating.current || loading) return;
+        isGenerating.current = true;
         setLoading(true)
-        const formData = new FormData()
-        userInput && formData.append('userInput', userInput)
-        referenceImage && formData.append('referenceImage', referenceImage)
-        userImage && formData.append('userImage', userImage)
-
-        console.log(formData)
-
+        setOutputThumbnailImage("");
+        setEventId(null);
         try{
-            const result = await axios.post('/api/generate-thumbnail', formData);
-            console.log(result.data)
+            const formData = new FormData()
+            userInput && formData.append('userInput', userInput)
+            referenceImage && formData.append('referenceImage', referenceImage)
+            userImage && formData.append('userImage', userImage)            
+            console.log(formData)
 
-            while(true){
-                const runStatus = await RunStatus(result.data.runId)
-                if(runStatus && runStatus[0]?.status === 'Completed'){
-                    setOutputThumbnailImage(runStatus[0].output)
-                    setLoading(false)
-                    break;
-                }
-                if(runStatus && runStatus[0]?.status === 'Cancelled'){
-                    setLoading(false);
-                    break;
-                }
-                await new Promise(resolve => setTimeout(resolve, 1000));
-            }
+            const result = await axios.post('/api/generate-thumbnail', formData);
+            console.log("Thumbnail request result:",result.data)
+            setEventId(result.data.runId);
         }catch(e){
             console.log(e)
             setLoading(false)
         }
     }
+
+    const pollRunStatus = async () => {
+        if (!eventId) return;
+
+        try {
+            const res = await fetch(`/api/run-status?id=${eventId}`);
+            const data = await res.json();
+
+            if (res.ok) {
+                const status = data.status?.[0];
+                console.log("Run status:", status);
+
+                if (status?.status === "Completed") {
+                    // assuming output is array of URLs
+                    const output = status?.output?.[0];
+                    console.log("Run completed, thumbnail output:", output);
+
+                    setOutputThumbnailImage(output?.thumbnailUrl || output); 
+                    setLoading(false);
+                    isGenerating.current = false;
+                    return;
+                }
+
+                if (status?.status === "Cancelled") {
+                    setLoading(false);
+                    isGenerating.current = false;
+                    return;
+                }
+
+                // continue polling
+                setTimeout(pollRunStatus, 5000);
+            } else {
+                throw new Error(data.error || "Failed to fetch run status");
+            }
+        } catch (err) {
+            console.error("Error polling thumbnail run status:", err);
+            setLoading(false);
+            isGenerating.current = false;
+        }
+    };
+
+    useEffect(() => {
+        if (eventId) {
+        pollRunStatus();
+        }
+    }, [eventId]);
+
 
     return (
         <div>
