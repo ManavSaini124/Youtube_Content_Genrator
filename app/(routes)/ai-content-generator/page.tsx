@@ -39,6 +39,7 @@ function AiContentGenerator() {
         setLoading(true);
         setError(null);
         setContent(null);
+        setEventId(null);
 
         try {
             const result = await axios.post('/api/ai-content-generator', {
@@ -59,36 +60,38 @@ function AiContentGenerator() {
         if (!eventId) return;
 
         try {
-        const res = await fetch(`/api/run-status?id=${eventId}`);
-        const data = await res.json();
-        if (res.ok) {
-            const status = data.status;
+            const res = await fetch(`/api/run-status?id=${eventId}`);
+            const data = await res.json();
+            if (res.ok) {
+                const status = data.status;
 
-            console.log("Run status:", status);
+                console.log("Run status:", status);
 
-            if (status && status[0]?.status === 'COMPLETED') {
-                console.log("Run completed, data:", status[0]?.data);
-                setContent(status[0]?.data); // Set the generated content
-                setLoading(false);
-                isGenerating.current = false;
-                return; // Stop polling
-            } else if (status && status[0]?.status === 'CANCELLED') {
-                setError('Generation was cancelled');
-                setLoading(false);
-                isGenerating.current = false;
-                return;
+                if (status && status[0]?.status === 'completed') {
+                    console.log("Run completed, data:", status[0]?.data);
+                    setContent(status[0]?.data); // Set the generated content
+                    setLoading(false);
+                    isGenerating.current = false;
+                    return; // Stop polling
+                } else if (status && status[0]?.status === 'cancelled') {
+                    setError('Generation was cancelled');
+                    setLoading(false);
+                    isGenerating.current = false;
+                    return;
+                }
+
+                // Continue polling if not complete
+                console.log('Run still in progress, polling again...');
+                setTimeout(pollRunStatus, 5000); // Poll every 5 seconds
+            } else {
+                throw new Error(data.error || 'Failed to fetch run status');
             }
-
-            // Continue polling if not complete
-            setTimeout(pollRunStatus, 5000); // Poll every 5 seconds
-        } else {
-            throw new Error(data.error || 'Failed to fetch run status');
-        }
         } catch (err) {
             console.error("Error fetching run status:", err);
             setError('Network error while fetching run status');
-            setLoading(false);
             isGenerating.current = false;
+        } finally{
+            setLoading(false);
         }
     };
 
