@@ -67,13 +67,13 @@ function AiContentGenerator() {
 
                 console.log("Run status:", status);
 
-                if (status && status[0]?.status === 'completed') {
-                    console.log("Run completed, data:", status[0]?.data);
-                    setContent(status[0]?.data); // Set the generated content
+                if (status && status[0]?.status === 'Completed') {
+                    console.log("Run completed, data:", status[0]?.output?.[0]);
+                    setContent(status[0]?.output?.[0]); // Set the generated content
                     setLoading(false);
                     isGenerating.current = false;
                     return; // Stop polling
-                } else if (status && status[0]?.status === 'cancelled') {
+                } else if (status && status[0]?.status === 'Cancelled') {
                     setError('Generation was cancelled');
                     setLoading(false);
                     isGenerating.current = false;
