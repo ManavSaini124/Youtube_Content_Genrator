@@ -18,12 +18,16 @@ export default function ComingSoon() {
     return timeLeft;
   };
 
-  const [timeLeft, setTimeLeft] = useState<any>(calculateTimeLeft());
+  const [timeLeft, setTimeLeft] = useState<any>({});
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
+    setMounted(true); // only render countdown after client mount
+
     const timer = setInterval(() => {
       setTimeLeft(calculateTimeLeft());
     }, 1000);
+
     return () => clearInterval(timer);
   }, []);
 
@@ -47,21 +51,24 @@ export default function ComingSoon() {
         We’re working hard to launch something amazing. Stay tuned!
       </motion.p>
 
-      <motion.div
-        className="flex gap-6 mb-12"
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ delay: 0.6, duration: 1 }}
-      >
-        {["days", "hours", "minutes", "seconds"].map((interval, index) => (
-          <div key={index} className="flex flex-col items-center">
-            <span className="text-4xl font-bold text-gray-900">
-              {timeLeft[interval] || "0"}
-            </span>
-            <span className="text-gray-500 capitalize">{interval}</span>
-          </div>
-        ))}
-      </motion.div>
+      {/* Render countdown only after hydration */}
+      {mounted && (
+        <motion.div
+          className="flex gap-6 mb-12"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.6, duration: 1 }}
+        >
+          {["days", "hours", "minutes", "seconds"].map((interval, index) => (
+            <div key={index} className="flex flex-col items-center">
+              <span className="text-4xl font-bold text-gray-900">
+                {timeLeft[interval] ?? "0"}
+              </span>
+              <span className="text-gray-500 capitalize">{interval}</span>
+            </div>
+          ))}
+        </motion.div>
+      )}
 
       <motion.button
         className="px-6 py-3 rounded-lg bg-gray-900 text-white font-semibold hover:bg-gray-800 transition"

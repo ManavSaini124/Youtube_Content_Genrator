@@ -1,11 +1,12 @@
 "use client"
-import { ArrowUp, ImagePlus, Loader2, User, X } from 'lucide-react'
+import { ArrowUp, ImagePlus, Loader2, Settings, User, X } from 'lucide-react'
 import React, { use, useEffect, useRef, useState } from 'react'
 import { motion, AnimatePresence } from "framer-motion"
 import axios from 'axios';
 import { RunStatus } from '@/services/GlobalApi';
 import Image from 'next/image';
 import ThumbnailList from './_components/ThumbnailList';
+import { Button } from '@/components/ui/button';
 
 function AiThumbnailGenerator() {
     const [userInput, setUserInput] = useState<string>('');
@@ -16,6 +17,7 @@ function AiThumbnailGenerator() {
     const [loading, setLoading] = useState<boolean>(false)
     const [outputThumbnailImage, setOutputThumbnailImage] = useState<string>('')
     const [eventId, setEventId] = useState<string | null>(null);
+    const [progress, setProgress] = useState(10);
     const isGenerating = useRef(false);
 
     
@@ -107,6 +109,28 @@ function AiThumbnailGenerator() {
         }
     }, [eventId]);
 
+    useEffect(() => {
+        if (loading) {
+            setProgress(10); // start from 10%
+            const interval = setInterval(() => {
+            setProgress((prev) => {
+                // Move slowly until ~90%
+                if (prev < 90) {
+                return prev + Math.random() * 3; // add 1–3% at a time
+                }
+                return prev; // stop at 90% until real completion
+            });
+            }, 500); // update every 0.5s
+
+            return () => clearInterval(interval);
+        } else {
+            setProgress(100); // instantly complete when finished
+        }
+    }, [loading]);
+
+
+//AI Thumbnail Generator
+// Your ideas are not just limited to words. Use AI to generate stunning thumbnails for your content.
 
     return (
         <div>
@@ -118,8 +142,10 @@ function AiThumbnailGenerator() {
                     transition={{ duration: 0.6 }}
                     className='flex items-center justify-center mt-20 flex-col gap-2'
                 >
-                    <h2 className='font-bold text-3xl'>AI Thumbnail Generator</h2>
-                    <p className='text-gray-400 text-center '>
+                    <h2 className='font-bold text-4xl md:text-5xl tracking-tight bg-gradient-to-r from-[#ff7917] to-[#584424] bg-clip-text text-transparent'>
+                        AI Thumbnail Generator
+                    </h2>
+                    <p className='text-gray-500 dark:text-gray-400 text-center max-w-2xl '>
                         Your ideas are not just limited to words. Use AI to generate stunning thumbnails for your content.
                     </p>
                 </motion.div>
@@ -128,12 +154,15 @@ function AiThumbnailGenerator() {
                 <div className='mt-6'>
                     {loading ? (
                         // Branded loading card with gradient frame
-                        <div className="relative rounded-2xl p-[2px] bg-gradient-to-r from-[#ff7917] via-[#68dbff] to-transparent">
+                        <div className="relative rounded-2xl p-[2px] bg-gradient-to-r from-[#ff7917] via-[#584424] to-[#68dbff]">
                             <div className="rounded-2xl h-[350px] bg-black/80 flex flex-col items-center justify-center gap-4">
                                 <Loader2 className="w-7 h-7 animate-spin text-white" />
                                 <p className="text-white/80">Generating your thumbnail…</p>
                                 <div className="w-1/2 h-1.5 bg-white/10 rounded-full overflow-hidden">
-                                    <div className="h-full w-1/3 bg-gradient-to-r from-[#ff7917] to-[#68dbff] animate-pulse rounded-full" />
+                                    <div
+                                        className="h-full bg-gradient-to-r from-[#ff7917] via-[#584424] to-[#68dbff] rounded-full transition-all duration-500"
+                                        style={{ width: `${progress}%` }}
+                                    />
                                 </div>
                             </div>
                         </div>
@@ -146,7 +175,7 @@ function AiThumbnailGenerator() {
                                     animate={{ opacity: 1, scale: 1 }}
                                     exit={{ opacity: 0 }}
                                     transition={{ duration: 0.4 }}
-                                    className="relative rounded-2xl overflow-hidden"
+                                    className="relative rounded-2xl overflow-hidden shadow-lg"
                                 >
                                     <Image
                                         src={outputThumbnailImage}
@@ -156,9 +185,7 @@ function AiThumbnailGenerator() {
                                         className='w-full h-[350px] object-cover'
                                         priority
                                     />
-                                    {/* Soft readability gradient on top */}
                                     <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/35 via-transparent to-transparent" />
-                                    {/* Thin brand border glow */}
                                     <div className="pointer-events-none absolute inset-0 ring-1 ring-white/10" />
                                 </motion.div>
                             )}
@@ -171,24 +198,26 @@ function AiThumbnailGenerator() {
                     initial={{ scale: 0.95, opacity: 0 }}
                     animate={{ scale: 1, opacity: 1 }}
                     transition={{ duration: 0.5 }}
-                    className='flex gap-5 items-center p-3 border rounded-xl mt-10 bg-secondary'
+                    className='flex gap-5 items-center p-3 border rounded-xl mt-10 bg-white dark:bg-neutral-900 shadow-sm'
                 >
                     <textarea
                         placeholder='Enter the content you want to generate a thumbnail for'
-                        className='w-full outline-none bg-transparent resize-none'
+                        className='w-full outline-none bg-transparent resize-none text-gray-800 dark:text-gray-100'
                         onChange={(e) => { setUserInput(e.target.value) }}
                     />
-                    <motion.div
-                        whileHover={{ scale: 1.1, rotate: 5 }}
-                        whileTap={{ scale: 0.9 }}
-                        className='p-3 cursor-pointer bg-gradient-to-r from-indigo-500 to-purple-500 rounded-full shadow-md hover:shadow-lg transition'
+                    <Button
                         onClick={onSubmit}
+                        disabled={loading || !userInput}
+                        className="px-6 py-3 bg-gradient-to-r from-[#ff7917] via-[#584424] to-[#68dbff] text-white rounded-xl font-medium hover:opacity-90 transition disabled:opacity-50"
                     >
-                        {loading
-                            ? <Loader2 className="w-5 h-5 animate-spin text-white" />
-                            : <ArrowUp className='text-white' />
-                        }
-                    </motion.div>
+                        {loading ? (
+                            <Loader2 className="w-5 h-5 animate-spin" />
+                        ) : (
+                            <div className="flex items-center gap-2">
+                            <Settings size={18} /> Generate
+                            </div>
+                        )}
+                    </Button>
                 </motion.div>
 
                 {/* Image uploads */}
@@ -219,10 +248,10 @@ function AiThumbnailGenerator() {
                             ) : (
                                 <motion.div
                                     whileHover={{ scale: 1.05 }}
-                                    className='p-4 w-full border rounded-xl bg-secondary flex gap-2 items-center justify-center cursor-pointer transition'
+                                    className='p-4 w-full border rounded-xl bg-white dark:bg-neutral-900 flex gap-2 items-center justify-center cursor-pointer shadow-sm transition'
                                 >
-                                    <ImagePlus />
-                                    <h2> Reference Image </h2>
+                                    <ImagePlus className="text-gray-600 dark:text-gray-300" />
+                                    <h2 className="text-gray-600 dark:text-gray-300"> Reference Image </h2>
                                 </motion.div>
                             )}
                         </AnimatePresence>
@@ -263,8 +292,8 @@ function AiThumbnailGenerator() {
                                     whileHover={{ scale: 1.05 }}
                                     className='p-4 w-full border rounded-xl bg-secondary flex gap-2 items-center justify-center cursor-pointer transition'
                                 >
-                                    <User />
-                                    <h2> User Image </h2>
+                                    <User className="text-gray-600 dark:text-gray-300"  />
+                                    <h2 className="text-gray-600 dark:text-gray-300"> User Image </h2>
                                 </motion.div>
                             )}
                         </AnimatePresence>

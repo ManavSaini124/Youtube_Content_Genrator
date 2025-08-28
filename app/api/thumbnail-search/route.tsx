@@ -10,14 +10,14 @@ export async function GET(req: NextRequest) {
     const thumbnailUrl = searchParams.get('thumbnailUrl');
     if (thumbnailUrl) {
         const completion = await openai.chat.completions.create({
-            model: 'moonshotai/kimi-vl-a3b-thinking:free',
+            model: 'google/gemini-2.0-flash-exp:free',
             messages: [
                 {
                     "role": 'user',
                     "content":[
                         {
                             "type": 'text',
-                            "text": "Output EXACTLY 5 comma-separated tags for searching similar YouTube videos based on this thumbnail. No explanations, no reasoning, no extra text, no markup like ◁think▷ or ◁/think▷. Use short, common keywords (1-3 words each) that are likely to appear in YouTube video titles or descriptions. Maximum 5 tags"
+                            "text": "Output EXACTLY 5 comma-separated tags for searching similar YouTube videos based on this thumbnail. No explanations, no reasoning, no extra text. Use short, common keywords (1-3 words each) that are likely to appear in YouTube video titles or descriptions. Maximum 5 tags"
                         },
                         {
                             "type": 'image_url',
@@ -33,26 +33,34 @@ export async function GET(req: NextRequest) {
         console.log("completion.choices[0].message.content =====> ",completion.choices[0].message.content);
 
 
-        const result = completion.choices[0].message.content;
-        if(!result){
-            return NextResponse.json({ error: 'No response from AI model' });
+        const result = completion.choices[0]?.message?.content?.trim();
+        if (!result) {
+        return NextResponse.json({ error: "No response from AI model" });
         }
 
-        // If you ever change the model , this will break , simply remove it and pass result to queary
-        const tagsStartIndex = result.indexOf('◁/think▷') + 8; // Length of '◁/think▷'
-        let tags = result.substring(tagsStartIndex).trim();
-        console.log("Extracted tags before cleanup: ", tags);
+        // If you ever change the model , this will break , simply remove it and pass result to queary (KIMI free model)
+        // const tagsStartIndex = result.indexOf('◁/think▷') + 8; // Length of '◁/think▷'
+        // let tags = result.substring(tagsStartIndex).trim();
+        // console.log("Extracted tags before cleanup: ", tags);
 
-        const newlineIndex = tags.indexOf('\n');
+        // const newlineIndex = tags.indexOf('\n');
         
-        console.log("newlineIndex ====>", newlineIndex);
-        console.log(typeof newlineIndex);
+        // console.log("newlineIndex ====>", newlineIndex);
+        // console.log(typeof newlineIndex);
         
-        if (newlineIndex !== -1) {
-            tags = tags.substring(0, newlineIndex).trim();
-        }
-        const tagsArray = tags.split(',').map(tag => tag.trim());
+        // if (newlineIndex !== -1) {
+        //     tags = tags.substring(0, newlineIndex).trim();
+        // }
+        // const tagsArray = tags.split(',').map(tag => tag.trim());
+        // console.log("tagsArray ====>", tagsArray);
+
+        const tagsArray = result
+            .split(",")
+            .map((tag) => tag.trim())
+            .filter((tag) => tag.length > 0);
+
         console.log("tagsArray ====>", tagsArray);
+
         const searchQuery = tagsArray.join('+');
         console.log("searchQuery ====>", searchQuery);
 

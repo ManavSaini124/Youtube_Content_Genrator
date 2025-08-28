@@ -11,6 +11,8 @@ import { steps } from 'framer-motion';
 
 const HF_API_TOKEN = process.env.HUGGING_FACE_ACCESS_TOKEN; // add your token in .env
 const HF_MODEL_ID = "stabilityai/stable-diffusion-2";
+const AiModelForContent = "mistralai/mistral-small-3.2-24b-instruct:free"
+const AiModelForThumbnail = "google/gemini-2.0-flash-exp:free"
 
 // DOESNT WORK 
 export async function HFgenerateImage(prompt?: string) {
@@ -214,7 +216,7 @@ export const GenrateAiThumbnail = inngest.createFunction(
             
             const maxPromptLength = 2048;// just for cloudfare
             const completion = await openai.chat.completions.create({
-              model: 'moonshotai/kimi-vl-a3b-thinking:free',
+              model: AiModelForThumbnail,
               messages: [
                 {
                   role: 'user',
@@ -369,8 +371,6 @@ const contentGentrationPrompt = (userInput: string)=>{
   `
 }
 
-const AiModelForContent = "mistralai/mistral-small-3.2-24b-instruct:free"
-// const AiModelForContent = "google/gemini-2.0-flash-exp:free"
 
 
 

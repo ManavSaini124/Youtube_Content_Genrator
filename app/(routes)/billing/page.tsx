@@ -1,7 +1,7 @@
 "use client";
-
+import { useRouter } from "next/navigation";
 import { Check, Star, Zap, Crown } from 'lucide-react';
-import { useRouter } from 'next/router';
+
 
 interface PricingTier {
   name: string;
@@ -118,7 +118,20 @@ function FloatingElements() {
 
 function PricingCard({ tier }: { tier: PricingTier }) {
   const styles = themeStyles[tier.theme];
+  const router = useRouter();
   
+  const getRedirectPath = (tierName: string) => {
+    switch (tierName) {
+      case "Basic":
+        return "/dashboard"; // Free signup page
+      case "Pro":
+        return "/checkout/pro"; // Checkout page for Pro
+      case "Enterprise":
+        return "/contact"; // Contact form page
+      default:
+        return "/";
+    }
+  };
 
   
   return (
@@ -197,6 +210,7 @@ function PricingCard({ tier }: { tier: PricingTier }) {
         {/* CTA Button */}
         <button 
             className={`w-full py-4 px-6 rounded-2xl font-bold text-lg transition-all duration-300 transform hover:scale-105 focus:outline-none focus:ring-4 focus:ring-opacity-50 ${styles.button} relative overflow-hidden group/button`}
+            onClick={() => router.push(getRedirectPath(tier.name))}
         >
           <span className="relative z-10">{tier.cta}</span>
           <div className="absolute inset-0 bg-gradient-to-r from-white/0 via-white/20 to-white/0 transform -skew-x-12 -translate-x-full group-hover/button:translate-x-full transition-transform duration-700"></div>
@@ -216,7 +230,7 @@ function PricingCard({ tier }: { tier: PricingTier }) {
 
 export default function PricingSection() {
   return (
-    <section className="relative py-24 px-4 bg-gradient-to-br from-slate-50 via-blue-50/30 to-purple-50/30 overflow-hidden">
+    <section className="relative py-24 px-4 bg-gradient-to-br from-[#ff7917]/5 via-[#584424]/5 to-[#68dbff]/10">
       <FloatingElements />
       
       {/* Background mesh gradient */}
@@ -225,14 +239,14 @@ export default function PricingSection() {
       <div className="relative max-w-7xl mx-auto">
         {/* Header */}
         <div className="text-center mb-20">
-          <div className="inline-flex items-center px-4 py-2 bg-gradient-to-r from-blue-100 to-purple-100 rounded-full text-blue-800 font-semibold text-sm mb-6">
+          <div className="inline-flex items-center px-4 py-2 bg-gradient-to-r from-[#e6cebd] to-[#96d2f1] rounded-full text-[#584424] font-semibold text-sm mb-6">
             <Zap className="w-4 h-4 mr-2" />
             Pricing Plans
           </div>
           
           <h2 className="text-5xl md:text-7xl font-black text-gray-900 mb-6 tracking-tight">
             Choose Your
-            <span className="bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 bg-clip-text text-transparent"> Perfect </span>
+            <span className="bg-gradient-to-r from-[#ff7917] to-[#584424]  bg-clip-text text-transparent"> Perfect </span>
             Plan
           </h2>
           
