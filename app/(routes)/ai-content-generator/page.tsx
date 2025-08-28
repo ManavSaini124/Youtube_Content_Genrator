@@ -1,5 +1,5 @@
 'use client'
-import React, { useCallback, useRef } from 'react'
+import React, { useCallback, useRef, useEffect } from 'react'
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from '@/components/ui/button'
 import { Loader2, Search, Settings, Settings2 } from 'lucide-react';
@@ -28,50 +28,114 @@ function AiContentGenerator() {
     const [userInput, setUserInput] = React.useState<string>('');
     const [loading, setLoading] = React.useState<boolean>(false);
     const [content, setContent] = React.useState<Content|null>(null);
+    const [error, setError] = React.useState<string | null>(null);
+    const [eventId, setEventId] = React.useState<string | null>(null);
     const isGenerating = useRef(false);
 
-    const onGenrate = useCallback(async () => {
-        if (isGenerating.current) {
-            console.log("⏩ Ignored duplicate trigger");
-            return;
-        }
+    // Function to start generation (e.g., on button click)
+    const onGenerate = async () => {
+        if (isGenerating.current || loading) return;
         isGenerating.current = true;
+        setLoading(true);
+        setError(null);
+        setContent(null);
 
         try {
-            setLoading(true);
-            setContent(null)
             const result = await axios.post('/api/ai-content-generator', {
-                userInput : userInput,
+                userInput: userInput,
             });
-            console.log("Result on page ------------>",result.data)
-
-            while(true){
-                console.log("Checking run status for runId:", result.data.runId);
-                const runStatus = await RunStatus(result.data.runId)
-                console.log("runStatus on page ------------>",runStatus);
-
-                if(runStatus && runStatus[0]?.status === 'Completed'){
-                    console.log("runStatus[0]?.data ==>",runStatus[0]?.data)
-                    setContent(runStatus?.data)
-                    setLoading(false)
-                    break;
-                }
-                if(runStatus && runStatus[0]?.status === 'Cancelled'){
-                    setLoading(false);
-                    break;
-                }
-
-                await new Promise(resolve => setTimeout(resolve, 1000));
-            }
-
-            // console.log(result.data);
-        } catch (error) {
-            console.error("Error fetching outlier data:", error);
-        } finally {
+            console.log("Result on page ------------>", result.data);
+            setEventId(result.data.runId); // Assuming API returns { runId: '...' }
+        } catch (err) {
+            console.error("Error starting generation:", err);
+            setError('Failed to start content generation');
             setLoading(false);
             isGenerating.current = false;
         }
-    },[userInput]);
+    };
+
+    // Polling function for run status
+    const pollRunStatus = async () => {
+        if (!eventId) return;
+
+        try {
+        const res = await fetch(`/api/run-status?id=${eventId}`);
+        const data = await res.json();
+        if (res.ok) {
+            const status = data.status;
+
+            console.log("Run status:", status);
+
+            if (status && status[0]?.status === 'COMPLETED') {
+                console.log("Run completed, data:", status[0]?.data);
+                setContent(status[0]?.data); // Set the generated content
+                setLoading(false);
+                isGenerating.current = false;
+                return; // Stop polling
+            } else if (status && status[0]?.status === 'CANCELLED') {
+                setError('Generation was cancelled');
+                setLoading(false);
+                isGenerating.current = false;
+                return;
+            }
+
+            // Continue polling if not complete
+            setTimeout(pollRunStatus, 5000); // Poll every 5 seconds
+        } else {
+            throw new Error(data.error || 'Failed to fetch run status');
+        }
+        } catch (err) {
+            console.error("Error fetching run status:", err);
+            setError('Network error while fetching run status');
+            setLoading(false);
+            isGenerating.current = false;
+        }
+    };
+
+    // Start polling when eventId is set
+    useEffect(() => {
+        if (eventId) {
+            pollRunStatus();
+        }
+    }, [eventId]);
+
+    // const onGenrate = async () => {
+    //     try {
+    //         setLoading(true);
+    //         setContent(null)
+    //         const result = await axios.post('/api/ai-content-generator', {
+    //             userInput : userInput,
+    //         });
+    //         console.log("Result on page ------------>",result.data)
+
+    //         while(true){
+    //             console.log("Checking run status for runId:", result.data.runId);
+    //             const runStatus = await RunStatus(result.data.runId)
+    //             console.log("runStatus on page ------------>",runStatus);
+
+    //             if(runStatus && runStatus[0]?.status === 'Completed'){
+    //                 console.log("runStatus[0]?.data ==>",runStatus[0]?.data)
+    //                 setContent(runStatus?.data)
+    //                 setLoading(false)
+    //                 break;
+    //             }
+    //             if(runStatus && runStatus[0]?.status === 'Cancelled'){
+    //                 setLoading(false);
+    //                 break;
+    //             }
+
+    //             await new Promise(resolve => setTimeout(resolve, 1000));
+    //         }
+
+    //         // console.log(result.data);
+    //     } catch (error) {
+    //         console.error("Error fetching outlier data:", error);
+    //     } finally {
+    //         setLoading(false);
+    //         isGenerating.current = false;
+    //     }
+    // };
+
   return (
     <div className="max-w-6xl mx-auto px-4 py-12">
             {/* Hero Section */}
@@ -105,7 +169,7 @@ function AiContentGenerator() {
                     />
                     <Button
                         className="px-6 py-3 bg-gradient-to-r from-[#ff7917] to-[#584424] text-white rounded-xl font-medium hover:scale-105 transition-all disabled:opacity-50"
-                        onClick={onGenrate}
+                        onClick={onGenerate}
                         disabled={!userInput || loading}
                     >
                         {loading ? (
