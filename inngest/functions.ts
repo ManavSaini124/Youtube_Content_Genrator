@@ -224,17 +224,20 @@ export const GenrateAiThumbnail = inngest.createFunction(
                     {
                       "type": "text",
                       "text": uploadImageUrls
-                        ? `Analyze the reference image at this URL and write a concise, descriptive text prompt (max 2048 characters) to generate a high-quality YouTube thumbnail. 
-                           Match the style of the reference image (e.g., color scheme, mood, layout) while adapting to the user theme: "${userInput}". 
-                           Structure the prompt with sections for background, foreground, central elements, and text. Ensure it's bold, eye-catching, optimized for 16:9 (1024x576), with high contrast, vibrant colors, and large, readable sans-serif text. 
-                           Include a play button icon, minimal relevant imagery (e.g., icons like arrows or glows), and dynamic effects (e.g., gradients, shadows). 
-                           Example structure: "A dynamic YouTube thumbnail with a high-contrast neon green and blue gradient background, featuring a 3D metallic play button on the left. Large bold white sans-serif text '{TITLE}' centered with glow effects. Subtle icons like lightbulbs floating around, cyberpunk aesthetic, HD." 
-                           Return only the text prompt, no extra text or thinking.`
-                        : ` Write a concise, descriptive text prompt (max 2048 characters) to generate a high-quality YouTube thumbnail based on the user theme: "${userInput}". 
-                            Structure the prompt with sections for background, foreground, central elements, and text. Ensure it's bold, eye-catching, optimized for 16:9 (1024x576), with high contrast, vibrant colors, and large, readable sans-serif text. 
-                            Include a play button icon, minimal relevant imagery (e.g., icons like arrows or glows), and dynamic effects (e.g., gradients, shadows). 
-                            Example structure: "A dynamic YouTube thumbnail with a high-contrast neon green and blue gradient background, featuring a 3D metallic play button on the left. Large bold white sans-serif text '{TITLE}' centered with glow effects. Subtle icons like lightbulbs floating around, cyberpunk aesthetic, HD." 
-                            Return only the text prompt, no extra text or thinking.`
+                        ? `Analyze the reference image at this URL: "${uploadImageUrls}". Extract its style (color scheme, mood, layout, key elements, lighting) and create a detailed, descriptive text prompt (max 2048 characters) for an AI image generator to produce a viral YouTube thumbnail adapted to the user theme: "${userInput}".
+                          Match the reference's aesthetic while enhancing for click appeal: add emotional expressions, dynamic actions, and curiosity-evoking symbols.
+                          Structure the prompt strictly with sections: Background, Central Elements, Foreground, Text Overlay, Composition, Lighting and Effects, Style.
+                          Ensure bold, eye-catching design optimized for 16:9 aspect (1280x720 resolution), high contrast, vibrant colors, and large, legible sans-serif text without distortion.
+                          Include a prominent play button icon, minimal icons (e.g., arrows, sparks for emphasis), and dynamic effects (e.g., gradients, glows, shadows).
+                          Example structure: "Hyper-realistic YouTube thumbnail in 16:9 aspect: Background: Vibrant orange-to-red gradient evoking excitement. Central Elements: Person with surprised expression holding a glowing gadget. Foreground: Metallic play button bottom left, subtle question mark icons floating. Text Overlay: Large bold white sans-serif 'Top 10 Must-Know Tips!' centered with glow. Composition: Rule of thirds with focal point on face. Lighting and Effects: Dramatic spotlights, high contrast shadows. Style: Cinematic, HD quality, viral YouTube aesthetic."
+                          Return ONLY the text prompt string, no extra text, explanations, or thinking.`
+                        : `Create a detailed, descriptive text prompt (max 2048 characters) for an AI image generator to produce a viral YouTube thumbnail based on the user theme: "${userInput}".
+                          Enhance for click appeal: add emotional expressions, dynamic actions, and curiosity-evoking symbols.
+                          Structure the prompt strictly with sections: Background, Central Elements, Foreground, Text Overlay, Composition, Lighting and Effects, Style.
+                          Ensure bold, eye-catching design optimized for 16:9 aspect (1280x720 resolution), high contrast, vibrant colors, and large, legible sans-serif text without distortion.
+                          Include a prominent play button icon, minimal icons (e.g., arrows, sparks for emphasis), and dynamic effects (e.g., gradients, glows, shadows).
+                          Example structure: "Hyper-realistic YouTube thumbnail in 16:9 aspect: Background: Vibrant orange-to-red gradient evoking excitement. Central Elements: Person with surprised expression holding a glowing gadget. Foreground: Metallic play button bottom left, subtle question mark icons floating. Text Overlay: Large bold white sans-serif 'Top 10 Must-Know Tips!' centered with glow. Composition: Rule of thirds with focal point on face. Lighting and Effects: Dramatic spotlights, high contrast shadows. Style: Cinematic, HD quality, viral YouTube aesthetic."
+                          Return ONLY the text prompt string, no extra text, explanations, or thinking.`
                     },
                     //@ts-ignore
                     ...(uploadImageUrls?
@@ -370,8 +373,6 @@ const contentGentrationPrompt = (userInput: string)=>{
     Make sure the thumbnail image prompt reflects the respective title context, includes visual style (3D/flat/vector), character/action/objects (if needed), background design, and text position ideas
   `
 }
-
-
 
 
 export const GenrateAiContent = inngest.createFunction(
