@@ -124,6 +124,7 @@ export function FeaturesSection() {
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
             className="gradient-bg hover-glow text-white px-8 py-4 rounded-xl font-semibold border-0 transition-all duration-300"
+            onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
           >
             Get Started Free
           </motion.button>

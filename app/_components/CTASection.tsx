@@ -122,6 +122,7 @@ export function CTASection() {
             <Button
               size="lg"
               className="gradient-bg hover-glow text-white border-0 px-8 py-4 text-lg font-medium group"
+              onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
             >
               Start Your Free Trial
               <ArrowRight className="ml-2 h-5 w-5 group-hover:translate-x-1 transition-transform" />

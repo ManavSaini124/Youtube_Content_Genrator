@@ -1,7 +1,7 @@
 "use client"
 
 import { motion } from 'framer-motion'
-import { Zap, Twitter, Github, Linkedin } from 'lucide-react'
+import { Zap, Github, Linkedin } from 'lucide-react'
 
 const footerLinks = [
   {
@@ -34,9 +34,8 @@ const footerLinks = [
 ]
 
 const socialLinks = [
-  { icon: Twitter, href: '#' },
-  { icon: Github, href: '#' },
-  { icon: Linkedin, href: '#' }
+  { icon: Github, href: 'https://github.com/ManavSaini124' },
+  { icon: Linkedin, href: 'www.linkedin.com/in/manav-saini-code' }
 ]
 
 export function Footer() {
@@ -80,7 +79,6 @@ export function Footer() {
             </div>
           </motion.div>
 
-          {/* Link sections */}
           {footerLinks.map((section, sectionIndex) => (
             <motion.div
               key={section.title}
@@ -118,12 +116,14 @@ export function Footer() {
           <p className="text-muted-foreground text-sm">
             © 2025 AI Creator. All rights reserved.
           </p>
-          
+
+          {/* on click popup should apprar saying "coming soon */}
           <div className="flex items-center space-x-6 mt-4 md:mt-0">
             <motion.a
               href="#"
               whileHover={{ scale: 1.05 }}
               className="text-muted-foreground hover:text-foreground text-sm transition-colors duration-200"
+              onClick={() => alert('Its a personal project, But I like your curiosity!')}
             >
               Privacy Policy
             </motion.a>
@@ -131,6 +131,7 @@ export function Footer() {
               href="#"
               whileHover={{ scale: 1.05 }}
               className="text-muted-foreground hover:text-foreground text-sm transition-colors duration-200"
+              onClick={() => alert('One Day I would definitely add this, Promise!')}
             >
               Terms of Service
             </motion.a>
@@ -138,6 +139,7 @@ export function Footer() {
               href="#"
               whileHover={{ scale: 1.05 }}
               className="text-muted-foreground hover:text-foreground text-sm transition-colors duration-200"
+              onClick={() => alert('Have you clicked other Buttons also!')}
             >
               Cookie Policy
             </motion.a>

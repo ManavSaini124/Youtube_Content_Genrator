@@ -85,6 +85,8 @@ export function ShowcaseSection() {
               <Button 
                 size="lg" 
                 className="gradient-bg hover-glow text-white border-0 group"
+                onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+
               >
                 Explore All Features
                 <ArrowRight className="ml-2 h-5 w-5 group-hover:translate-x-1 transition-transform" />

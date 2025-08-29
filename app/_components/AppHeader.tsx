@@ -1,4 +1,5 @@
 import { SidebarTrigger } from '@/components/ui/sidebar'
+import ProfileModal from "./ProfileModal";
 import React from 'react'
 
 function AppHeader() {
@@ -7,10 +8,9 @@ function AppHeader() {
             {/* Left Section */}
             <div className="flex items-center gap-3">
                 <SidebarTrigger />
-                
-            </div>
-
             
+            </div>
+            <ProfileModal />
         </div>
     )
 }

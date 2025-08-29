@@ -1,6 +1,7 @@
 "use client";
 import { useRouter } from "next/navigation";
 import { Check, Star, Zap, Crown } from 'lucide-react';
+import { motion } from "framer-motion";
 
 
 interface PricingTier {
@@ -107,11 +108,30 @@ const themeStyles = {
 function FloatingElements() {
   return (
     <div className="absolute inset-0 overflow-hidden pointer-events-none">
-      {/* Floating orbs */}
-      <div className="absolute top-20 left-10 w-32 h-32 bg-gradient-to-r from-blue-400/20 to-purple-400/20 rounded-full blur-xl animate-pulse"></div>
-      <div className="absolute top-40 right-20 w-24 h-24 bg-gradient-to-r from-pink-400/20 to-red-400/20 rounded-full blur-xl animate-pulse delay-1000"></div>
-      <div className="absolute bottom-32 left-1/4 w-40 h-40 bg-gradient-to-r from-green-400/20 to-blue-400/20 rounded-full blur-xl animate-pulse delay-2000"></div>
-      <div className="absolute bottom-20 right-1/3 w-28 h-28 bg-gradient-to-r from-yellow-400/20 to-orange-400/20 rounded-full blur-xl animate-pulse delay-500"></div>
+
+      <motion.div
+        className="absolute top-20 left-10 w-32 h-32 bg-gradient-to-r from-blue-400/20 to-purple-400/20 rounded-full blur-xl"
+        animate={{ y: [0, -20, 0], x: [0, 15, 0] }}
+        transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }}
+      />
+
+      <motion.div
+        className="absolute top-40 right-20 w-24 h-24 bg-gradient-to-r from-pink-400/20 to-red-400/20 rounded-full blur-xl"
+        animate={{ y: [0, -15, 0], x: [0, -10, 0] }}
+        transition={{ duration: 10, repeat: Infinity, ease: "easeInOut", delay: 2 }}
+      />
+
+      <motion.div
+        className="absolute bottom-32 left-1/4 w-40 h-40 bg-gradient-to-r from-green-400/20 to-blue-400/20 rounded-full blur-xl"
+        animate={{ y: [0, -25, 0], x: [0, 20, 0] }}
+        transition={{ duration: 12, repeat: Infinity, ease: "easeInOut", delay: 1 }}
+      />
+
+      <motion.div
+        className="absolute bottom-20 right-1/3 w-28 h-28 bg-gradient-to-r from-yellow-400/20 to-orange-400/20 rounded-full blur-xl"
+        animate={{ y: [0, -18, 0], x: [0, -12, 0] }}
+        transition={{ duration: 9, repeat: Infinity, ease: "easeInOut", delay: 3 }}
+      />
     </div>
   );
 }
@@ -238,30 +258,62 @@ export default function PricingSection() {
       
       <div className="relative max-w-7xl mx-auto">
         {/* Header */}
-        <div className="text-center mb-20">
+        <motion.div 
+          className="text-center mb-20"
+          initial={{ opacity: 0, y: 40 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.8 }}
+        >
           <div className="inline-flex items-center px-4 py-2 bg-gradient-to-r from-[#e6cebd] to-[#96d2f1] rounded-full text-[#584424] font-semibold text-sm mb-6">
             <Zap className="w-4 h-4 mr-2" />
             Pricing Plans
           </div>
           
-          <h2 className="text-5xl md:text-7xl font-black text-gray-900 mb-6 tracking-tight">
+          <motion.h2
+            initial={{ opacity: 0, y: 30 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.9, delay: 0.2 }} 
+            className="text-5xl md:text-7xl font-black text-gray-900 mb-6 tracking-tight"
+          >
             Choose Your
             <span className="bg-gradient-to-r from-[#ff7917] to-[#584424]  bg-clip-text text-transparent"> Perfect </span>
             Plan
-          </h2>
+          </motion.h2>
           
-          <p className="text-xl text-gray-600 max-w-3xl mx-auto leading-relaxed font-medium">
+          <motion.p 
+            className="text-xl text-gray-600 max-w-3xl mx-auto leading-relaxed font-medium"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.9, delay: 0.4 }}
+          >
             Unlock your potential with our carefully crafted pricing tiers. 
             <span className="text-gray-800 font-semibold"> Each plan is designed to grow with you.</span>
-          </p>
-        </div>
+          </motion.p>
+        </motion.div>
 
         {/* Pricing cards */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 lg:gap-6 xl:gap-8 items-start mb-16">
+        <motion.div 
+          className="grid grid-cols-1 lg:grid-cols-3 gap-8 lg:gap-6 xl:gap-8 items-start mb-16"
+          initial="hidden"
+          animate="show"
+          variants={{
+            hidden: { opacity: 0 },
+            show: { opacity: 1, transition: { staggerChildren: 0.2 } }
+          }}
+        >
           {pricingTiers.map((tier, index) => (
-            <PricingCard key={index} tier={tier} />
+            <motion.div
+              key={index}
+              variants={{
+                hidden: { opacity: 0, y: 40, scale: 0.95 },
+                show: { opacity: 1, y: 0, scale: 1 }
+              }}
+              transition={{ duration: 0.6, ease: "easeOut" }}
+            >
+              <PricingCard key={index} tier={tier} />
+            </motion.div>
           ))}
-        </div>
+        </motion.div>
 
         {/* Bottom section */}
         <div className="text-center">
