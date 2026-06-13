@@ -12,7 +12,7 @@ import { steps } from 'framer-motion';
 const HF_API_TOKEN = process.env.HUGGING_FACE_ACCESS_TOKEN; 
 const HF_MODEL_ID = "stabilityai/stable-diffusion-2";
 const AiModelForContent = "mistralai/mistral-small-3.2-24b-instruct:free"
-const AiModelForThumbnail = "qwen/qwen3-next-80b-a3b-instruct:free"
+const AiModelForThumbnail = "meta-llama/llama-3.3-70b-instruct:free"
 
 // DOESNT WORK 
 export async function HFgenerateImage(prompt?: string) {
