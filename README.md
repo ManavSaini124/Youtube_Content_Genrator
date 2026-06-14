@@ -97,17 +97,23 @@ The app includes user authentication, a dashboard, billing integration, and back
    npx drizzle-kit studio  # Optional: Open Drizzle Studio for DB management
    ```
 
-5. Run the development server:
+5. Run the development server in one terminal:
    ```
    npm run dev
-   # or
-   yarn dev
    ```
    Open [http://localhost:3000](http://localhost:3000) in your browser.
 
-6. For background jobs (Inngest):
+6. Run the local Inngest Dev Server in a second terminal:
    ```
    npm run inngest
+   ```
+   The app automatically sends development events to the local Dev Server and
+   polls run status from `http://127.0.0.1:8288`. The Inngest dashboard is
+   available at [http://localhost:8288](http://localhost:8288).
+
+   To use a different local Inngest address, set:
+   ```
+   INNGEST_DEVSERVER_URL=http://127.0.0.1:8288
    ```
 
 ## Usage

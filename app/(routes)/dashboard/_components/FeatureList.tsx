@@ -2,115 +2,122 @@
 
 import Image from "next/image"
 import Link from "next/link"
-import React from "react"
-import { motion } from "framer-motion"
+import {
+  ArrowUpRight,
+  BarChart3,
+  FileText,
+  Gauge,
+  ImageIcon,
+  Search,
+  Sparkles,
+} from "lucide-react"
 
 const features = [
   {
     id: 1,
-    name: "AI Thumbnails Generator",
+    name: "Thumbnail generator",
+    description: "Create a thumbnail from a prompt, reference image, or your own photo.",
     image: "/Feature1.png",
     path: "/ai-thumbnail-generator",
+    icon: ImageIcon,
+    status: "Ready",
   },
   {
     id: 2,
-    name: "AI Thumbnails Search",
+    name: "Thumbnail search",
+    description: "Search visual references and find a useful direction faster.",
     image: "/Feature2.png",
     path: "/thumbnail-search",
+    icon: Search,
+    status: "Ready",
   },
   {
     id: 3,
-    name: "AI Content Generator",
+    name: "Content generator",
+    description: "Generate titles, descriptions, tags, and thumbnail prompts.",
     image: "/Feature3.png",
     path: "/ai-content-generator",
+    icon: FileText,
+    status: "Ready",
   },
   {
     id: 4,
-    name: "Outliers",
+    name: "Outlier finder",
+    description: "Inspect videos that outperform a channel's usual baseline.",
     image: "/Feature4.png",
     path: "/outlier",
+    icon: Gauge,
+    status: "Ready",
   },
   {
     id: 5,
-    name: "Optimize Video",
+    name: "Video optimizer",
+    description: "A guided optimization workflow for videos before publishing.",
     image: "/Feature5.png",
-    path: "#",
+    path: "/coming-soon",
+    icon: BarChart3,
+    status: "Coming soon",
   },
   {
     id: 6,
-    name: "Trending Keywords",
+    name: "Trending keywords",
+    description: "Discover useful keyword directions for upcoming content.",
     image: "/Feature6.jpeg",
-    path: "/trending-keywords",
+    path: "/coming-soon",
+    icon: Sparkles,
+    status: "Coming soon",
   },
 ]
 
 function FeatureList() {
   return (
-    <div className="mt-7">
-      <motion.h2
-        className="font-bold text-2xl mb-5"
-        initial={{ opacity: 0, y: -20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.6, ease: "easeOut" }}
-      >
-        AI Tools
-      </motion.h2>
+    <section className="dashboard-tools">
+      <div className="dashboard-tools__head">
+        <div>
+          <h2>Your tools</h2>
+          <p>Pick the next job in your publishing workflow.</p>
+        </div>
+        <Link href="/billing">
+          Manage plan
+          <ArrowUpRight aria-hidden="true" />
+        </Link>
+      </div>
 
-      <motion.div
-        className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6"
-        initial="hidden"
-        animate="show"
-        variants={{
-          hidden: {},
-          show: {
-            transition: {
-              staggerChildren: 0.15, // delay between items
-            },
-          },
-        }}
-      >
+      <div className="dashboard-tools__grid">
         {features.map((feature) => (
-          <motion.div
+          <Link
             key={feature.id}
-            variants={{
-              hidden: { opacity: 0, y: 30 },
-              show: { opacity: 1, y: 0 },
-            }}
-            transition={{ duration: 0.6, ease: "easeOut" }}
+            href={feature.path}
+            className="dashboard-tool-card"
           >
-            <Link
-              href={feature.path}
-              className="group relative rounded-2xl overflow-hidden shadow-md hover:shadow-xl transition"
-            >
-              <div className="relative w-full h-[150px] overflow-hidden">
-                {/* background image */}
-                <Image
-                  src={feature.image}
-                  width={400}
-                  height={250}
-                  alt={feature.name}
-                  className="w-full h-full object-cover transform transition-transform duration-300 group-hover:scale-105 group-hover:rotate-2"
-                />
-
-                {/* gradient overlay */}
-                <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/30 to-transparent transform transition-transform duration-300 group-hover:scale-105" />
-
-                {/* hover gradient overlay */}
-                <div className="absolute inset-0 bg-gradient-to-r from-orange-500 via-blue-500 to-black opacity-0 transform transition-all duration-500 group-hover:opacity-100 group-hover:scale-105" />
+            <div className="dashboard-tool-card__image">
+              <Image
+                src={feature.image}
+                width={600}
+                height={360}
+                alt=""
+                aria-hidden="true"
+                loading="lazy"
+              />
+            </div>
+            <div className="dashboard-tool-card__body">
+              <div className="dashboard-tool-card__meta">
+                <feature.icon aria-hidden="true" />
+                <span data-status={feature.status === "Ready" ? "ready" : "soon"}>
+                  {feature.status}
+                </span>
               </div>
-
-              {/* feature name */}
-              <div className="absolute bottom-3 left-3">
-                <h3 className="text-white font-semibold text-sm md:text-base">
-                  {feature.name}
-                </h3>
-              </div>
-            </Link>
-
-          </motion.div>
+              <h3>{feature.name}</h3>
+              <p>{feature.description}</p>
+              <span className="dashboard-tool-card__action">
+                {feature.status === "Ready" ? "Open tool" : "View details"}
+                <ArrowUpRight aria-hidden="true" />
+              </span>
+            </div>
+          </Link>
         ))}
-      </motion.div>
-    </div>
+      </div>
+    </section>
   )
 }
 

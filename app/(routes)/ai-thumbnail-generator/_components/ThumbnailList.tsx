@@ -1,100 +1,115 @@
-import { Skeleton } from '@/components/ui/skeleton';
-import axios from 'axios'
-import { Target } from 'lucide-react';
-import Image from 'next/image';
-import Link from 'next/link';
-import { useEffect, useState } from 'react'
+"use client"
+
+import { useEffect, useState } from "react"
+import Image from "next/image"
+import { ArrowUpRight, Images } from "lucide-react"
+import axios from "axios"
+
+import { Skeleton } from "@/components/ui/skeleton"
 
 type Thumbnail = {
-    id: number,
-    thumbnailUrl: string,
-    refImage: string,
-    userInput: string,
+  id: number
+  thumbnailUrl: string
+  refImage: string
+  userInput: string
 }
 
-function ThumbnailList() {
-    const[thumbnailList, setThumbnailList] =useState<Thumbnail[]>([]);
-    const[loading, setLoading] = useState<boolean>(false);
-    useEffect(()=>{
-        GetThumbnailList();
-    },[])
-    const GetThumbnailList = async() =>{
-        try {
-            setLoading(true);
-            const result = await axios.get('/api/generate-thumbnail');
-            console.log('result:', result.data);
-            setThumbnailList(result.data);
-        } catch (error) {
-            console.error('Error fetching thumbnails:', error);
-        } finally {
-            console.log('Thumbnail list:', thumbnailList);
-            setLoading(false);
-        }
+type ThumbnailListProps = {
+  refreshKey?: number
+}
+
+export default function ThumbnailList({ refreshKey = 0 }: ThumbnailListProps) {
+  const [thumbnails, setThumbnails] = useState<Thumbnail[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState("")
+
+  useEffect(() => {
+    const controller = new AbortController()
+
+    const loadThumbnails = async () => {
+      try {
+        setLoading(true)
+        setError("")
+        const result = await axios.get("/api/generate-thumbnail", {
+          signal: controller.signal,
+        })
+        setThumbnails(result.data)
+      } catch (requestError) {
+        if (axios.isCancel(requestError)) return
+        console.error("Error fetching thumbnails:", requestError)
+        setError("Your previous thumbnails could not be loaded.")
+      } finally {
+        if (!controller.signal.aborted) setLoading(false)
+      }
     }
-    return (
-        <div className='mt-10'>
-            <h2 className="relative font-bold text-3xl mb-8 text-gray-900">
-                Previously Generated Thumbnails
-                <span className="absolute left-0 -bottom-2 w-24 h-1 bg-gradient-to-r from-purple-500 to-pink-500 rounded-full"></span>
-            </h2>
 
-            {/* Empty State */}
-            {!loading && thumbnailList.length === 0 && (
-                <div className="flex flex-col items-center justify-center py-16 px-4 bg-gray-50 rounded-lg border">
-                    <Image 
-                        src="/empty.svg" // 👉 put an illustration here (like in your first screenshot)
-                        width={180} 
-                        height={180} 
-                        alt="No thumbnails"
-                        className="mb-6"
-                    />
-                    <h3 className="text-lg font-semibold text-gray-800">No Thumbnails Yet</h3>
-                    <p className="text-gray-500 text-center mt-2 max-w-md">
-                        Generate your first thumbnail and it will appear here.  
-                        Use the generator above to get started.
-                    </p>
-                </div>
-            )}
+    loadThumbnails()
+    return () => controller.abort()
+  }, [refreshKey])
 
-            <div className='grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6 '>
-                {!loading ? thumbnailList.map((thumbnail, index)=>(
-                    thumbnail.thumbnailUrl ? (
-                    <Link key={index} href={thumbnail.thumbnailUrl} target="_blank">
-                        <div  className='group rounded-xl overflow-hidden shadow-md hover:shadow-xl transition-all duration-300 bg-secondary border'>
-                            <div className='relative w-full h-[150px]'>
-                                <Image 
-                                    src={thumbnail.thumbnailUrl} 
-                                    fill 
-                                    alt="thumbnail" 
-                                    className="object-cover group-hover:scale-105 transition-transform duration-500" 
-                                />
-                            </div>
-                            <div className="p-3">
-                                <p className="text-sm text-gray-400 line-clamp-2 italic">
-                                    {thumbnail.userInput || 'Generated thumbnail'}
-                                </p>
-                            </div>
-                        </div>
-                    </Link>
-                    ) : null
-                )):
-                // skeleton effect
-                Array.from({ length: 6 }).map((_, index) => (
-                    <div
-                        key={index}
-                        className="flex flex-col space-y-3 rounded-xl overflow-hidden border bg-secondary p-2"
-                    >
-                    <Skeleton className="h-[150px] w-full rounded-xl" />
-                    <div className="space-y-2 p-2">
-                        <Skeleton className="h-3 w-3/4 rounded" />
-                        <Skeleton className="h-3 w-1/2 rounded" />
-                    </div>
-                    </div>
-                ))
-                }     
-            </div>
+  return (
+    <section className="tool-results thumbnail-history" aria-live="polite">
+      <div className="thumbnail-history__header">
+        <div>
+          <p className="tool-page-eyebrow">Your library</p>
+          <h2>Recent thumbnails</h2>
+          <p>Revisit earlier concepts or open a full-resolution image.</p>
         </div>
-    )
-}
+        {!loading && thumbnails.length > 0 && (
+          <span>{thumbnails.length} saved</span>
+        )}
+      </div>
 
-export default ThumbnailList
+      {error && <p className="thumbnail-history__error">{error}</p>}
+
+      {loading ? (
+        <div className="thumbnail-history__grid" aria-label="Loading saved thumbnails">
+          {Array.from({ length: 3 }).map((_, index) => (
+            <div className="thumbnail-history__skeleton" key={index}>
+              <Skeleton className="aspect-video w-full rounded-none" />
+              <div>
+                <Skeleton className="h-3 w-5/6" />
+                <Skeleton className="h-3 w-1/2" />
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : thumbnails.length === 0 && !error ? (
+        <div className="thumbnail-history__empty">
+          <span><Images aria-hidden="true" /></span>
+          <div>
+            <h3>No thumbnails yet</h3>
+            <p>Your generated work will collect here automatically.</p>
+          </div>
+        </div>
+      ) : (
+        <div className="thumbnail-history__grid">
+          {thumbnails.map((thumbnail) =>
+            thumbnail.thumbnailUrl ? (
+              <a
+                className="thumbnail-history__card"
+                key={thumbnail.id}
+                href={thumbnail.thumbnailUrl}
+                target="_blank"
+                rel="noreferrer"
+              >
+                <div className="thumbnail-history__image">
+                  <Image
+                    src={thumbnail.thumbnailUrl}
+                    fill
+                    sizes="(min-width: 1024px) 30vw, (min-width: 640px) 50vw, 100vw"
+                    alt={thumbnail.userInput || "Generated YouTube thumbnail"}
+                  />
+                </div>
+                <div className="thumbnail-history__body">
+                  <p>{thumbnail.userInput || "Generated thumbnail"}</p>
+                  <ArrowUpRight aria-hidden="true" />
+                </div>
+              </a>
+            ) : null,
+          )}
+        </div>
+      )}
+    </section>
+  )
+}

@@ -1,28 +1,27 @@
 "use client"
-import React, { useEffect } from 'react'
-import { useRouter } from 'next/navigation';
-import { SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar';
-import axios from "axios";
-import AppHeader from '../_components/AppHeader';
-import { AppSidebar } from '../_components/AppSidebar';
+
+import React from "react"
+import { SidebarProvider } from "@/components/ui/sidebar"
+import AppHeader from "../_components/AppHeader"
+import { AppSidebar } from "../_components/AppSidebar"
 
 function DashboardProvider({
-    children,
+  children,
 }: Readonly<{
-    children: React.ReactNode;
+  children: React.ReactNode
 }>) {
-
-    return (
-        <SidebarProvider>
-            <AppSidebar />
-            <main className='w-full'>
-                <AppHeader />
-                {/* <SidebarTrigger /> */}
-                <div className='p-10'>{children}</div>
-            </main>
-        </SidebarProvider>
-
-    )
+  return (
+    <SidebarProvider
+      className="dashboard-shell"
+      style={{ "--sidebar-width": "17rem" } as React.CSSProperties}
+    >
+      <AppSidebar />
+      <main className="dashboard-main">
+        <AppHeader />
+        <div className="dashboard-content">{children}</div>
+      </main>
+    </SidebarProvider>
+  )
 }
 
 export default DashboardProvider

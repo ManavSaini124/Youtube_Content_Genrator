@@ -1,199 +1,199 @@
-'use client'
-import React, { useCallback, useRef, useEffect } from 'react'
-import { motion, AnimatePresence } from "framer-motion";
-import { Button } from '@/components/ui/button'
-import { Loader2, Search, Settings, Settings2 } from 'lucide-react';
-import axios from 'axios';
-import { RunStatus } from '@/services/GlobalApi';
-import ContentDisplay from './_components/Content-display';
+"use client"
+
+import { useEffect, useRef, useState } from "react"
+import type { FormEvent } from "react"
+import { FileText, Loader2, Sparkles } from "lucide-react"
+import axios from "axios"
+
+import { Button } from "@/components/ui/button"
+import ContentDisplay from "./_components/Content-display"
+
+export type GeneratedTitle = {
+  seo_score: number
+  title: string
+}
+
+export type ImagePrompt = {
+  heading: string
+  prompt: string
+}
+
+export type GeneratedContent = {
+  description: string
+  image_prompts: ImagePrompt[]
+  tags: string[]
+  titles: GeneratedTitle[]
+}
 
 export type Content = {
-    id: string;
-    thumbnailUrl: string;
-    content: subContent;
-    userInput: string;
-    createdAt: string;
+  id: string
+  thumbnailUrl: string
+  content: GeneratedContent
+  userInput: string
+  createdAt: string
 }
 
-type subContent = {
-    description:string;
-    image_prompts:any;  
-    tags:[];
-    titles:[{
-        seo_score:number;
-        title: string;
-    }]
-}
-function AiContentGenerator() {
-    const [userInput, setUserInput] = React.useState<string>('');
-    const [loading, setLoading] = React.useState<boolean>(false);
-    const [content, setContent] = React.useState<Content|null>(null);
-    const [error, setError] = React.useState<string | null>(null);
-    const [eventId, setEventId] = React.useState<string | null>(null);
-    const isGenerating = useRef(false);
+export default function AiContentGenerator() {
+  const [brief, setBrief] = useState("")
+  const [loading, setLoading] = useState(false)
+  const [content, setContent] = useState<Content | null>(null)
+  const [error, setError] = useState("")
+  const [eventId, setEventId] = useState<string | null>(null)
 
-    // Function to start generation (e.g., on button click)
-    const onGenerate = async () => {
-        if (isGenerating.current || loading) return;
-        isGenerating.current = true;
-        setLoading(true);
-        setError(null);
-        setContent(null);
-        setEventId(null);
+  const isGenerating = useRef(false)
+  const pollTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const pollAbortRef = useRef<AbortController | null>(null)
 
-        try {
-            const result = await axios.post('/api/ai-content-generator', {
-                userInput: userInput,
-            });
-            console.log("Result on page ------------>", result.data);
-            setEventId(result.data.runId); // Assuming API returns { runId: '...' }
-        } catch (err) {
-            console.error("Error starting generation:", err);
-            setError('Failed to start content generation');
-            setLoading(false);
-            isGenerating.current = false;
-        }
-    };
+  const onGenerate = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    if (isGenerating.current || loading || !brief.trim()) return
 
-    // Polling function for run status
+    isGenerating.current = true
+    setLoading(true)
+    setError("")
+    setContent(null)
+    setEventId(null)
+
+    try {
+      const result = await axios.post("/api/ai-content-generator", {
+        userInput: brief.trim(),
+      })
+
+      if (!result.data.runId) throw new Error("The generation job did not start.")
+      setEventId(result.data.runId)
+    } catch (requestError) {
+      console.error("Error starting content generation:", requestError)
+      setError("We could not start your content kit. Check your connection and try again.")
+      setLoading(false)
+      isGenerating.current = false
+    }
+  }
+
+  useEffect(() => {
+    if (!eventId) return
+    let active = true
+
+    const finishWithError = (message: string) => {
+      if (!active) return
+      setError(message)
+      setLoading(false)
+      isGenerating.current = false
+    }
+
     const pollRunStatus = async () => {
-        if (!eventId) return;
+      pollAbortRef.current = new AbortController()
 
-        try {
-            const res = await fetch(`/api/run-status?id=${eventId}`);
-            const data = await res.json();
-            if (res.ok) {
-                const status = data.status;
+      try {
+        const response = await fetch(`/api/run-status?id=${eventId}`, {
+          signal: pollAbortRef.current.signal,
+        })
+        const data = await response.json()
+        if (!response.ok) throw new Error(data.error || "Failed to fetch run status")
 
-                console.log("Run status:", status);
+        const status = data.status?.[0]
+        if (status?.status === "Completed") {
+          if (!active) return
+          const generatedContent = status.output?.[0]
+          if (!generatedContent?.content) {
+            finishWithError("The job finished without content. Please try again.")
+            return
+          }
 
-                if (status && status[0]?.status === 'Completed') {
-                    console.log("Run completed, data:", status[0]?.output?.[0]);
-                    const generatedContent = status[0]?.output?.[0];
-                    setContent(generatedContent); // Set the generated content
-                    setLoading(false);
-                    isGenerating.current = false;
-                    return; // Stop polling
-                } else if (status && status[0]?.status === 'Cancelled') {
-                    setError('Generation was cancelled');
-                    setLoading(false);
-                    isGenerating.current = false;
-                    return;
-                }
-
-                // Continue polling if not complete
-                console.log('Run still in progress, polling again...');
-                setTimeout(pollRunStatus, 5000); // Poll every 5 seconds
-            } else {
-                throw new Error(data.error || 'Failed to fetch run status');
-            }
-        } catch (err) {
-            console.error("Error fetching run status:", err);
-            setError('Network error while fetching run status');
-            setLoading(false);
-            isGenerating.current = false;
+          setContent(generatedContent)
+          setLoading(false)
+          isGenerating.current = false
+          return
         }
-    };
 
-    // Start polling when eventId is set
-    useEffect(() => {
-        if (eventId) {
-            pollRunStatus();
+        if (status?.status === "Cancelled" || status?.status === "Failed") {
+          finishWithError("This generation did not complete. Please try again.")
+          return
         }
-    }, [eventId]);
 
-    // const onGenrate = async () => {
-    //     try {
-    //         setLoading(true);
-    //         setContent(null)
-    //         const result = await axios.post('/api/ai-content-generator', {
-    //             userInput : userInput,
-    //         });
-    //         console.log("Result on page ------------>",result.data)
+        if (active) pollTimeoutRef.current = setTimeout(pollRunStatus, 1000)
+      } catch (pollError) {
+        if (!active || (pollError instanceof DOMException && pollError.name === "AbortError")) {
+          return
+        }
+        console.error("Error fetching content run status:", pollError)
+        finishWithError("We lost contact with the generation job. Please try again.")
+      }
+    }
 
-    //         while(true){
-    //             console.log("Checking run status for runId:", result.data.runId);
-    //             const runStatus = await RunStatus(result.data.runId)
-    //             console.log("runStatus on page ------------>",runStatus);
+    pollRunStatus()
 
-    //             if(runStatus && runStatus[0]?.status === 'Completed'){
-    //                 console.log("runStatus[0]?.data ==>",runStatus[0]?.data)
-    //                 setContent(runStatus?.data)
-    //                 setLoading(false)
-    //                 break;
-    //             }
-    //             if(runStatus && runStatus[0]?.status === 'Cancelled'){
-    //                 setLoading(false);
-    //                 break;
-    //             }
-
-    //             await new Promise(resolve => setTimeout(resolve, 1000));
-    //         }
-
-    //         // console.log(result.data);
-    //     } catch (error) {
-    //         console.error("Error fetching outlier data:", error);
-    //     } finally {
-    //         setLoading(false);
-    //         isGenerating.current = false;
-    //     }
-    // };
+    return () => {
+      active = false
+      pollAbortRef.current?.abort()
+      if (pollTimeoutRef.current) clearTimeout(pollTimeoutRef.current)
+    }
+  }, [eventId])
 
   return (
-    <div className="max-w-6xl mx-auto px-4 py-12">
-            {/* Hero Section */}
-            <motion.div 
-                className="text-center mb-12"
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.6 }}
-            >
-                <h2 className="font-bold text-4xl md:text-5xl tracking-tight bg-gradient-to-r from-[#ff7917] to-[#584424] bg-clip-text text-transparent">
-                    Content Generator
-                </h2>
-                <p className="mt-3 text-gray-500 dark:text-gray-400 text-lg max-w-2xl mx-auto">
-                    Generate engaging content effortlessly. Our AI-powered tool helps you create high-quality videos, articles, and more—tailored to your audience's interests and trends.
-                </p>
-            </motion.div>
+    <div className="dashboard-page content-page">
+      <header className="tool-page-header">
+        <p className="tool-page-eyebrow">Creator tool</p>
+        <h1>Turn one idea into a launch-ready video.</h1>
+        <p className="tool-page-description">
+          Start with a clear topic and get ranked titles, a polished description,
+          search tags, thumbnail directions, and a generated visual.
+        </p>
+      </header>
 
-            {/* Search Box */}
-            <motion.div 
-                className="bg-white dark:bg-neutral-900 border border-gray-200 dark:border-neutral-800 rounded-2xl shadow-sm p-6 max-w-3xl mx-auto"
-                initial={{ opacity: 0, scale: 0.95 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ duration: 0.4 }}
-            >
-                <div className="flex flex-col md:flex-row items-center gap-3">
-                    <input
-                        type="text"
-                        placeholder="Enter video Idea or topic here..."
-                        className="flex-1 px-4 py-3 border border-gray-300 dark:border-neutral-700 rounded-xl outline-none focus:ring-2 focus:ring-orange-400 text-gray-800 dark:text-gray-100 bg-gray-50 dark:bg-neutral-800"
-                        onChange={(e) => setUserInput(e.target.value)}
-                    />
-                    <Button
-                        className="px-6 py-3 bg-gradient-to-r from-[#ff7917] to-[#584424] text-white rounded-xl font-medium hover:scale-105 transition-all disabled:opacity-50"
-                        onClick={onGenerate}
-                        disabled={!userInput || loading}
-                    >
-                        {loading ? (
-                            <Loader2 className="animate-spin" />
-                        ) : (
-                            <div className="flex items-center gap-2">
-                                <Settings size={18} /> Genrate
-                            </div>
-                        )}
-                    </Button>
-                </div>
-            </motion.div>
-            
-           
-            {(loading || content) && (
-                <ContentDisplay content={content} loading={loading} />
-            )}
-            
+      <form
+        className="tool-panel content-brief"
+        aria-labelledby="content-brief-title"
+        onSubmit={onGenerate}
+      >
+        <div className="content-brief__header">
+          <div>
+            <p className="content-step">01</p>
+            <h2 id="content-brief-title">Set the creative direction</h2>
+          </div>
+          <div className="content-brief__deliverables" aria-label="Generated deliverables">
+            <span><FileText aria-hidden="true" /> Titles</span>
+            <span>Description</span>
+            <span>Tags</span>
+            <span>Thumbnail</span>
+          </div>
+        </div>
+
+        <div className="content-field">
+          <label htmlFor="content-idea">Video idea</label>
+          <textarea
+            id="content-idea"
+            value={brief}
+            onChange={(event) => setBrief(event.target.value)}
+            placeholder="Example: A practical beginner's guide to building a cinematic home studio on a small budget"
+            maxLength={800}
+            required
+          />
+          <div className="content-field__meta">
+            <span>Include the audience, angle, desired outcome, and tone when relevant.</span>
+            <span>{brief.length}/800</span>
+          </div>
+        </div>
+
+        {error && (
+          <div className="content-error" role="alert">
+            <p>{error}</p>
+          </div>
+        )}
+
+        <div className="content-brief__footer">
+          <p>Generation may take a minute while the copy and thumbnail are prepared.</p>
+          <Button
+            type="submit"
+            disabled={loading || !brief.trim()}
+            className="content-generate-button"
+          >
+            {loading ? <Loader2 className="animate-spin" /> : <Sparkles />}
+            {loading ? "Building content kit..." : "Generate content kit"}
+          </Button>
+        </div>
+      </form>
+
+      <ContentDisplay content={content} loading={loading} />
     </div>
-
   )
 }
-
-export default AiContentGenerator

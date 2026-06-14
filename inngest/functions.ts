@@ -6,32 +6,184 @@ import { db } from '@/configs/db';
 import { AiContentTable, AiThumbnail } from '@/configs/schema';
 import moment from 'moment';
 import axios from "axios";
-import sharp from 'sharp';
-import { steps } from 'framer-motion';
+import sharp from "sharp";
 
-const HF_API_TOKEN = process.env.HUGGING_FACE_ACCESS_TOKEN; 
-const HF_MODEL_ID = "stabilityai/stable-diffusion-2";
-const AiModelForContent = "mistralai/mistral-small-3.2-24b-instruct:free"
-const AiModelForThumbnail = "meta-llama/llama-3.3-70b-instruct:free"
+// Keep the model configurable so upgrades do not require a code deployment.
+const AiModelForContent = process.env.GEMINI_TEXT_MODEL || "gemini-3.5-flash"
+const AiModelForThumbnail = process.env.GEMINI_TEXT_MODEL || "gemini-3.5-flash"
+const MAX_IMAGE_PROMPT_LENGTH = 2048;
+const CLOUDFLARE_IMAGE_MODEL =
+  process.env.CLOUDFLARE_IMAGE_MODEL || "@cf/leonardo/phoenix-1.0";
+const CLOUDFLARE_FALLBACK_IMAGE_MODEL =
+  "@cf/black-forest-labs/flux-2-klein-4b";
+
+type ThumbnailConcept = {
+  heading: string;
+  prompt: string;
+};
+
+const createThumbnailHeading = (userInput: string) => {
+  const words = userInput
+    .replace(/[^\w\s'-]/g, " ")
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+
+  return (words.slice(0, 5).join(" ") || "MUST WATCH").toUpperCase();
+};
+
+const createThumbnailPrompt = (userInput: string) =>
+  `Professional high-click-through YouTube thumbnail scene about "${userInput}". Show a complete visual story, not a portrait: ` +
+  "a clear main subject interacting with two or three large topic-specific objects, visible action, a surprising consequence, " +
+  "and one unanswered visual question. Medium-wide cinematic framing; the subject occupies no more than 40% of the image. " +
+  "Use foreground, midground, and background depth, strong diagonal movement, dramatic scale contrast, saturated complementary colors, " +
+  "bright rim light and deep shadows. Keep the entire LEFT 38% as simple dark environmental background with no people or important objects; " +
+  "place every character, prop, and action entirely in the RIGHT 62%. Every visible object must communicate the topic. " +
+  "No isolated face, no headshot, no passport-photo framing, no empty studio portrait, no generic stock photo, no clutter, " +
+  "no collage, no split screen, no text, no letters, no logo, no watermark, no UI.";
+
+async function generateThumbnailConcept(
+  userInput: string,
+  referenceImageUrl?: string | null
+): Promise<ThumbnailConcept> {
+  const completion = await openai.chat.completions.create({
+    model: AiModelForThumbnail,
+    response_format: { type: "json_object" },
+    messages: [
+      {
+        role: "user",
+        content: [
+          {
+            type: "text",
+            text: `Act as a senior YouTube thumbnail creative director. Design one attention-grabbing thumbnail concept for:
+"${userInput}"
+
+Return JSON only:
+{
+  "heading": "2 to 4 punchy words",
+  "prompt": "Detailed image-generation prompt"
+}
+
+The prompt must describe a complete visual story rather than a face:
+- One main subject shown from the waist up or wider, never an isolated headshot.
+- The subject must interact with 2-3 large, topic-specific objects.
+- Include visible action, stakes, transformation, danger, reward, contrast, or an unanswered visual question.
+- Use foreground, midground, and background. The subject occupies at most 40% of the frame.
+- Keep the entire LEFT 38% as simple dark environmental background with no people, faces, hands, or important objects.
+- Put every character, prop, and action entirely inside the RIGHT 62% so the headline never covers the story.
+- Specify camera angle, composition, colors, lighting, and the exact meaningful objects.
+- Make it understandable at phone size with one focal story and no tiny details.
+- Do not include text, letters, logos, watermarks, UI, collage, split screen, arrows, circles, or generic stock imagery.
+- Avoid generic phrases unless followed by concrete visual details.
+${referenceImageUrl ? "- Match the reference image's visual style and color treatment, but improve its story and composition." : ""}`,
+          },
+          ...(referenceImageUrl
+            ? [{
+              type: "image_url" as const,
+              image_url: { url: referenceImageUrl },
+            }]
+            : []),
+        ],
+      },
+    ],
+  });
+
+  const rawConcept = completion.choices[0].message.content;
+  if (!rawConcept) {
+    throw new Error("No thumbnail concept generated");
+  }
+
+  const concept = JSON.parse(rawConcept) as Partial<ThumbnailConcept>;
+  return {
+    heading: createThumbnailHeading(concept.heading || userInput),
+    prompt: `${concept.prompt || createThumbnailPrompt(userInput)} No isolated face or headshot.`,
+  };
+}
+
+const XML_ENTITIES: Record<string, string> = {
+    "<": "&lt;",
+    ">": "&gt;",
+    "&": "&amp;",
+    "'": "&apos;",
+    "\"": "&quot;",
+};
+
+const escapeXml = (value: string) =>
+  value.replace(/[<>&'"]/g, (character) => XML_ENTITIES[character] ?? character);
+
+async function formatAsYouTubeThumbnail(imageBuffer: Buffer, heading: string) {
+  const words = heading.split(/\s+/);
+  const splitAt = words.length > 2
+    ? Array.from({ length: words.length - 1 }, (_, index) => index + 1)
+      .reduce((best, current) => {
+        const currentDifference = Math.abs(
+          words.slice(0, current).join(" ").length -
+          words.slice(current).join(" ").length
+        );
+        const bestDifference = Math.abs(
+          words.slice(0, best).join(" ").length -
+          words.slice(best).join(" ").length
+        );
+        return currentDifference < bestDifference ? current : best;
+      }, 1)
+    : words.length;
+  const lines = [
+    words.slice(0, splitAt).join(" "),
+    words.slice(splitAt).join(" "),
+  ].filter(Boolean);
+  const longestLine = Math.max(...lines.map((line) => line.length));
+  const fontSize = Math.max(52, Math.min(92, Math.floor(530 / (longestLine * 0.62))));
+  const lineHeight = Math.round(fontSize * 1.08);
+  const startY = 360 - ((lines.length - 1) * lineHeight) / 2;
+  const text = lines
+    .map(
+      (line, index) =>
+        `<tspan x="64" y="${startY + index * lineHeight}">${escapeXml(line)}</tspan>`
+    )
+    .join("");
+
+  const overlay = Buffer.from(`
+    <svg width="1280" height="720" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <linearGradient id="shade" x1="0" x2="1">
+          <stop offset="0%" stop-color="#050505" stop-opacity="0.92"/>
+          <stop offset="48%" stop-color="#050505" stop-opacity="0.45"/>
+          <stop offset="76%" stop-color="#050505" stop-opacity="0"/>
+        </linearGradient>
+        <filter id="shadow">
+          <feDropShadow dx="5" dy="7" stdDeviation="5" flood-color="#000" flood-opacity="0.9"/>
+        </filter>
+      </defs>
+      <rect width="1280" height="720" fill="url(#shade)"/>
+      <rect x="54" y="${startY - fontSize}" width="12" height="${lines.length * lineHeight + 20}" rx="6" fill="#ff7917"/>
+      <text fill="#fff" font-family="Arial, Helvetica, sans-serif" font-size="${fontSize}"
+        font-weight="900" letter-spacing="-2" filter="url(#shadow)">${text}</text>
+    </svg>
+  `);
+
+  return sharp(imageBuffer)
+    .resize(1280, 720, { fit: "cover", position: "attention" })
+    .modulate({ saturation: 1.18 })
+    .sharpen()
+    .composite([{ input: overlay, top: 0, left: 0 }])
+    .jpeg({ quality: 90, chromaSubsampling: "4:4:4" })
+    .toBuffer();
+}
 
 // DOESNT WORK 
 export async function HFgenerateImage(prompt?: string) {
-  const decode = (data: ArrayBuffer) =>
-    Buffer.from(data).toString("utf8");
-
+  const HF_API_TOKEN = process.env.HUGGING_FACE_ACCESS_TOKEN;
   try {
     const response = await axios.post(
       `https://api-inference.huggingface.co/models/stabilityai/stable-diffusion-2`,
-      {
-        inputs: prompt
-      },
+      { inputs: prompt },
       {
         headers: {
           Authorization: `Bearer ${HF_API_TOKEN}`,
           "Content-Type": "application/json",
           Accept: "image/png"
         },
-        responseType: "arraybuffer", // because HF returns images as binary
+        responseType: "arraybuffer",
       }
     );
 
@@ -42,8 +194,7 @@ export async function HFgenerateImage(prompt?: string) {
       throw new Error(errorJson.error || "HF request failed");
     }
 
-
-    if(response.status !== 200){
+    if (response.status !== 200) {
       const textError = Buffer.from(response.data).toString("utf8");
       throw new Error(`HF error ${response.status}: ${textError}`);
     }
@@ -67,46 +218,35 @@ export async function CloudflareGenerateImage(prompt?: string) {
     throw new Error("No prompt provided for image generation");
   }
 
-  const maxPromptLength = 2048;
-  if (prompt.length > maxPromptLength) {
-    console.warn(`Prompt length (${prompt.length}) exceeds ${maxPromptLength} characters. Truncating...`);
-    prompt = prompt.substring(0, maxPromptLength - 50);
+  if (prompt.length > MAX_IMAGE_PROMPT_LENGTH) {
+    console.warn(`Prompt length (${prompt.length}) exceeds ${MAX_IMAGE_PROMPT_LENGTH} characters. Truncating...`);
+    prompt = prompt.substring(0, MAX_IMAGE_PROMPT_LENGTH - 50);
   }
 
   try {
-    const response = await axios.post(
-      `https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/ai/run/@cf/black-forest-labs/flux-1-schnell`,
-      {
-        prompt: prompt ?? '',
-        steps: 8,
-        guidance: 7.5,
-        seed: Math.floor(Math.random() * 1000000000),
-      },
-      {
-        headers: {
-          Authorization: `Bearer ${CLOUDFLARE_API_TOKEN}`,
-          "Content-Type": "application/json"
-        }
-      }
-    );
+    const startedAt = Date.now();
+    let imageBuffer: Buffer;
 
-    if(response.status !== 200){
-      console.log("I want to cry now");
-      throw new Error(`Cloudflare AI error ${response.status}: ${JSON.stringify(response.data)}`);
+    try {
+      imageBuffer = await generateWithPhoenix(
+        prompt,
+        CLOUDFLARE_ACCOUNT_ID,
+        CLOUDFLARE_API_TOKEN
+      );
+      console.log(`Cloudflare ${CLOUDFLARE_IMAGE_MODEL} generated an image`);
+    } catch (primaryError: any) {
+      console.warn(
+        `Primary image model failed; falling back to ${CLOUDFLARE_FALLBACK_IMAGE_MODEL}:`,
+        primaryError.response?.data || primaryError.message
+      );
+      imageBuffer = await generateWithFlux2Klein(
+        prompt,
+        CLOUDFLARE_ACCOUNT_ID,
+        CLOUDFLARE_API_TOKEN
+      );
     }
 
-    const base64Image = response.data.result.image;
-    if (!base64Image) {
-      throw new Error("No image generated in response");
-    }
-
-    let imageBuffer:Buffer<ArrayBufferLike> = Buffer.from(base64Image, 'base64');
-    // imageBuffer = await sharp(imageBuffer)
-    //   .resize(1024, 576, { fit: 'cover' })  // Crop to fit if needed
-    //   .toFormat('png') // Convert to PNG with quality
-    //   .toBuffer();
-
-    console.log("CloudflareGenerateImage DONE ---------------------");
+    console.log(`Cloudflare image generated in ${Date.now() - startedAt}ms`);
     return imageBuffer;
 
   } catch (error: any) {
@@ -115,6 +255,93 @@ export async function CloudflareGenerateImage(prompt?: string) {
   }
 }
 
+function getCloudflareImage(responseData: any) {
+  const base64Image = responseData?.result?.image ?? responseData?.image;
+  if (!base64Image) {
+    throw new Error("Cloudflare returned no image");
+  }
+
+  return Buffer.from(base64Image, "base64");
+}
+
+async function generateWithPhoenix(
+  prompt: string,
+  accountId: string,
+  apiToken: string
+) {
+  const response = await axios.post(
+    `https://api.cloudflare.com/client/v4/accounts/${accountId}/ai/run/${CLOUDFLARE_IMAGE_MODEL}`,
+    {
+      prompt,
+      negative_prompt:
+        "isolated face, close-up headshot, portrait photography, passport photo, selfie, " +
+        "empty background, generic stock photo, cropped head, giant face, text, letters, logo, " +
+        "watermark, UI, split screen, collage, clutter, tiny objects, low contrast",
+      width: 1024,
+      height: 576,
+      guidance: 7,
+      num_steps: 35,
+      seed: Math.floor(Math.random() * 1_000_000_000),
+    },
+    {
+      headers: {
+        Authorization: `Bearer ${apiToken}`,
+        "Content-Type": "application/json",
+        Accept: "image/jpeg",
+      },
+      responseType: "arraybuffer",
+      timeout: 120_000,
+    }
+  );
+
+  const contentType = response.headers["content-type"];
+  if (contentType?.includes("application/json")) {
+    throw new Error(Buffer.from(response.data).toString("utf8"));
+  }
+
+  return Buffer.from(response.data);
+}
+
+async function generateWithFlux2Klein(
+  prompt: string,
+  accountId: string,
+  apiToken: string
+) {
+  const formData = new FormData();
+  formData.append("prompt", prompt);
+  formData.append("width", "1024");
+  formData.append("height", "576");
+  formData.append("steps", "20");
+  formData.append("seed", String(Math.floor(Math.random() * 1_000_000_000)));
+
+  const response = await axios.post(
+    `https://api.cloudflare.com/client/v4/accounts/${accountId}/ai/run/${CLOUDFLARE_FALLBACK_IMAGE_MODEL}`,
+    formData,
+    {
+      headers: {
+        Authorization: `Bearer ${apiToken}`,
+      },
+      timeout: 90_000,
+    }
+  );
+
+  return getCloudflareImage(response.data);
+}
+
+async function generateAndUploadThumbnail(prompt: string, heading: string) {
+  const startedAt = Date.now();
+  const imageBuffer = await CloudflareGenerateImage(prompt);
+  const thumbnailBuffer = await formatAsYouTubeThumbnail(imageBuffer, heading);
+  const thumbnail = await imageKit.upload({
+    file: thumbnailBuffer,
+    fileName: `${Date.now()}.jpg`,
+    isPublished: true,
+    useUniqueFileName: true,
+  });
+
+  console.log(`Thumbnail generated and uploaded in ${Date.now() - startedAt}ms`);
+  return thumbnail.url;
+}
 
 export async function GoogleGenerateImage(prompt?: string) {
   const GOOGLE_GEMINI_API_KEY = process.env.GEMINI_API_KEY;
@@ -131,40 +358,22 @@ export async function GoogleGenerateImage(prompt?: string) {
     const response = await axios.post(
       `https://generativelanguage.googleapis.com/v1beta/models/imagen-4.0-generate-001:predict?key=${GOOGLE_GEMINI_API_KEY}`,
       {
-        instances: [
-          {
-            prompt: prompt ?? ""
-          }
-        ],
-        parameters: {
-          sampleCount: 1  // Generate 1 image (up to 4; keep low for free tier efficiency)
-        }
+        instances: [{ prompt: prompt ?? "" }],
+        parameters: { sampleCount: 1 }
       },
-      {
-        headers: {
-          "Content-Type": "application/json"
-        }
-      }
+      { headers: { "Content-Type": "application/json" } }
     );
 
     if (response.status !== 200) {
       throw new Error(`Gemini API error ${response.status}: ${JSON.stringify(response.data)}`);
     }
 
-    // Extract base64 image from response (in predictions array)
     const base64Image = response.data.predictions?.[0]?.imageBytes;
     if (!base64Image) {
       throw new Error("No image generated in response");
     }
 
-    let imageBuffer:Buffer<ArrayBufferLike> = Buffer.from(base64Image, 'base64');
-
-    // Optional: Resize to 16:9 (1024x576) for thumbnails
-    // imageBuffer = await sharp(imageBuffer)
-    //   .resize(1024, 576, { fit: 'cover' })  // Crop to fit if needed
-    //   .toFormat('png')  // Ensure PNG format
-    //   .toBuffer();
-
+    const imageBuffer: Buffer = Buffer.from(base64Image, 'base64');
     console.log("GoogleGenerateImage DONE ---------------------");
     return imageBuffer;
   } catch (error: any) {
@@ -174,298 +383,171 @@ export async function GoogleGenerateImage(prompt?: string) {
 }
 
 const imageKit = new ImageKit({
-    publicKey: process.env.IMAGEKIT_PUBLIC_KEY as string,
-    privateKey: process.env.IMAGEKIT_PRIVATE_KEY as string,
-    urlEndpoint: process.env.IMAGEKIT_URL_ENDPOINT as string,
+  publicKey: process.env.IMAGEKIT_PUBLIC_KEY as string,
+  privateKey: process.env.IMAGEKIT_PRIVATE_KEY as string,
+  urlEndpoint: process.env.IMAGEKIT_URL_ENDPOINT as string,
 })
 
+// ✅ Switched to Google AI Studio (free, OpenAI-SDK compatible)
 export const openai = new OpenAI({
-  baseURL: 'https://openrouter.ai/api/v1',
-  apiKey: process.env.OPEN_ROUTER_API_KEY,
+  baseURL: 'https://generativelanguage.googleapis.com/v1beta/openai/',
+  apiKey: process.env.GEMINI_API_KEY,
 });
 
-export const replicate  = new Replicate({
+export const replicate = new Replicate({
   auth: process.env.REPLICATE_API_KEY,
 })
-// TODO: change prompt to include the prompt form image in tags and extract that out
+
+// ✅ Fixed JSON structure - valid titles array, no duplicate keys
+const contentGentrationPrompt = (userInput: string) => `
+You are an expert YouTube SEO strategist and AI creative assistant. Based on the user input below, generate a JSON response only (no explanation, no markdown, no commentary, no backticks).
+
+User Input: ${userInput}
+
+Return ONLY this exact JSON structure:
+{
+  "titles": [
+    { "title": "First SEO optimized title here", "seo_score": 87 },
+    { "title": "Second SEO optimized title here", "seo_score": 82 },
+    { "title": "Third SEO optimized title here", "seo_score": 78 }
+  ],
+  "description": "A compelling 150-200 word YouTube video description with keywords naturally included.",
+  "tags": ["tag1", "tag2", "tag3", "tag4", "tag5", "tag6", "tag7", "tag8", "tag9", "tag10"],
+  "image_prompts": [
+    {
+      "heading": "Short 4 Word Heading",
+      "prompt": "Hyper-realistic YouTube thumbnail 16:9 aspect ratio 1280x720: Background: vibrant gradient evoking the topic mood. Central Elements: main subject with strong emotional expression. Foreground: metallic play button bottom left, minimal accent icons. Text Overlay: bold white sans-serif heading with glow effect. Composition: rule of thirds with focal point on subject. Lighting: dramatic spotlights high contrast shadows. Style: Cinematic HD viral YouTube aesthetic."
+    },
+    {
+      "heading": "Another Short Heading",
+      "prompt": "Hyper-realistic YouTube thumbnail 16:9 aspect ratio 1280x720: Background: contrasting bold color scheme. Central Elements: dynamic action scene related to topic. Foreground: glowing accent elements arrows or sparks. Text Overlay: large bold sans-serif text with drop shadow. Composition: centered focal point drawing the eye. Lighting: bright studio lighting with dramatic shadows. Style: Cinematic HD viral YouTube aesthetic."
+    }
+  ]
+}
+`
+
 export const GenrateAiThumbnail = inngest.createFunction(
-    {id: "ai/generate-thumbnail"},
-    {event: "ai/generate-thumbnail"},
-    async ({event, step}) => {
-        const {userInput, referenceImage, userImage, userEmail} = await event.data;
+  { id: "ai/generate-thumbnail" },
+  { event: "ai/generate-thumbnail" },
+  async ({ event, step }) => {
+    const { userInput, referenceImage, userEmail } = await event.data;
 
-        // image to cloud
-        const uploadImageUrls = await step.run(
-          "UploadImage",
-          async ()=>{
-            if(!referenceImage) return null;
-            const refernceImageUrl = await imageKit.upload({
-                file: referenceImage?.buffer??'',
-                fileName: referenceImage?.name??'',
-                isPublished: true,
-                useUniqueFileName: false,
-            })
-            return refernceImageUrl.url
-          }
-        )
-        
-        // Genrate Prompt 
-        const generateThumbnailPrompt = await step.run(
-          'generateThumbnailPrompt',
-          async()=>{
-            
-            const maxPromptLength = 2048;// just for cloudfare
-            const completion = await openai.chat.completions.create({
-              model: AiModelForThumbnail,
-              messages: [
-                {
-                  role: 'user',
-                  content: [
-                    {
-                      "type": "text",
-                      "text": uploadImageUrls
-                        ? `Analyze the reference image at this URL: "${uploadImageUrls}". Extract its style (color scheme, mood, layout, key elements, lighting) and create a detailed, descriptive text prompt (max 2048 characters) for an AI image generator to produce a viral YouTube thumbnail adapted to the user theme: "${userInput}".
-                          Match the reference's aesthetic while enhancing for click appeal: add emotional expressions, dynamic actions, and curiosity-evoking symbols.
-                          Structure the prompt strictly with sections: Background, Central Elements, Foreground, Text Overlay, Composition, Lighting and Effects, Style.
-                          Ensure bold, eye-catching design optimized for 16:9 aspect (1280x720 resolution), high contrast, vibrant colors, and large, legible sans-serif text without distortion.
-                          Include a prominent play button icon, minimal icons (e.g., arrows, sparks for emphasis), and dynamic effects (e.g., gradients, glows, shadows).
-                          Example structure: "Hyper-realistic YouTube thumbnail in 16:9 aspect: Background: Vibrant orange-to-red gradient evoking excitement. Central Elements: Person with surprised expression holding a glowing gadget. Foreground: Metallic play button bottom left, subtle question mark icons floating. Text Overlay: Large bold white sans-serif 'Top 10 Must-Know Tips!' centered with glow. Composition: Rule of thirds with focal point on face. Lighting and Effects: Dramatic spotlights, high contrast shadows. Style: Cinematic, HD quality, viral YouTube aesthetic."
-                          Return ONLY the text prompt string, no extra text, explanations, or thinking.`
-                        : `Create a detailed, descriptive text prompt (max 2048 characters) for an AI image generator to produce a viral YouTube thumbnail based on the user theme: "${userInput}".
-                          Enhance for click appeal: add emotional expressions, dynamic actions, and curiosity-evoking symbols.
-                          Structure the prompt strictly with sections: Background, Central Elements, Foreground, Text Overlay, Composition, Lighting and Effects, Style.
-                          Ensure bold, eye-catching design optimized for 16:9 aspect (1280x720 resolution), high contrast, vibrant colors, and large, legible sans-serif text without distortion.
-                          Include a prominent play button icon, minimal icons (e.g., arrows, sparks for emphasis), and dynamic effects (e.g., gradients, glows, shadows).
-                          Example structure: "Hyper-realistic YouTube thumbnail in 16:9 aspect: Background: Vibrant orange-to-red gradient evoking excitement. Central Elements: Person with surprised expression holding a glowing gadget. Foreground: Metallic play button bottom left, subtle question mark icons floating. Text Overlay: Large bold white sans-serif 'Top 10 Must-Know Tips!' centered with glow. Composition: Rule of thirds with focal point on face. Lighting and Effects: Dramatic spotlights, high contrast shadows. Style: Cinematic, HD quality, viral YouTube aesthetic."
-                          Return ONLY the text prompt string, no extra text, explanations, or thinking.`
-                    },
-                    //@ts-ignore
-                    ...(uploadImageUrls?
-                      [
-                        {
-                          "type": "image_url",
-                          "image_url": {
-                            "url": uploadImageUrls??""
-                          }
-                        }
-                      ]
-                      : []
-                    )
-                  ]
-                },
-              ],
-            });
-
-            let prompt = completion.choices[0].message.content;
-            console.log("Generated prompt length:", prompt?.length || 0);
-            console.log("Generated prompt:", prompt);
-            if (!prompt) {
-              throw new Error("No prompt generated by Moonshot AI");
-            }
-
-            if (prompt.length > maxPromptLength) {
-              console.warn(`Prompt length (${prompt.length}) exceeds ${maxPromptLength} characters. Truncating...`);
-              prompt = prompt.substring(0, maxPromptLength - 50); // Leave buffer for safety
-              console.log("Truncated prompt length:", prompt.length);
-              console.log("Truncated prompt:", prompt);
-            }
-            
-            console.log("generateThumbnailPrompt DONE ------------------------------" )
-            return prompt
-          }
-        )
-
-        // Genrate Thumbnail
-        const generateImage = await step.run(
-          'generateImage',
-          async ()=>{
-            // const input = {
-            //   prompt: generateThumbnailPrompt,
-            //   aspect_ratio: "16:9",
-            //   output_format: "png",
-            //   safety_filter_level: 'block_only_high'
-            // };
-            // const output = await replicate.run("stability-ai/stable-diffusion", {
-            //   input
-            // });
-            // console.log(output);
-            //  //@ts-ignore
-            // return output.url()
-            console.log("generateImage started ---------------------")
-            const base64Image = await CloudflareGenerateImage(generateThumbnailPrompt ?? "");
-            // const base64Image = await GoogleGenerateImage(generateThumbnailPrompt ?? ""); // DOESNT WORK
-            console.log("generateImage DONE ---------------------")
-            console.log("base64Image ---------------------",base64Image)
-            return base64Image;
-          }
-        )
-
-        // save image to cloud
-        const uploadThumbnail = await step.run('Upload Thubnail',async()=>{
-          const thumbnailUrl = await imageKit.upload({
-            // file: generateImage?.buffer??'',
-            file: Buffer.isBuffer(generateImage) ? generateImage : Buffer.from(generateImage.data ?? generateImage),
-            fileName: Date.now().toString()+'.png',
+    // Upload reference image to cloud
+    const uploadImageUrls = referenceImage
+      ? await step.run(
+        "UploadImage",
+        async () => {
+          const refernceImageUrl = await imageKit.upload({
+            file: referenceImage?.buffer ?? '',
+            fileName: referenceImage?.name ?? '',
             isPublished: true,
             useUniqueFileName: false,
-          }) as any;
-
-          return thumbnailUrl.url;
-        })
-
-        // save thumbnail to db
-        const saveThumbnail = await step.run('Save Thumbnail', async()=>{
-          const result = await db.insert(AiThumbnail).values({
-            userInput: userInput,
-            thumbnailUrl: uploadThumbnail,
-            refImage: uploadImageUrls,
-            userEmail: userEmail,
-            createdAt: moment().format('YYYY-MM-DD')
-             //@ts-ignore
-          }).returning(AiThumbnail)
-          
-          return result; 
-        })
-
-        return saveThumbnail;
-
-    },
-)
-
-const contentGentrationPrompt = (userInput: string)=>{
-  return `
-    You are an expert YouTube SEO strategist and Al creative assistant. Based on the user input below, generate a JSON response only (no explanation, no markdown, no commentary), containing:
-    1. Three YouTube video titles optimized for SEO.
-    2. SEO Score for each title ( 1 to 100).
-    3. A compelling YouTube video description based on the topic.
-    4. 10 relevant YouTube video tags.
-    5. Two YouTube thumbnail image prompts, each including:
-      Professional illustration style based on the video title
-      A short 3-5 word heading that will appear on the thumbnail image
-      Visually compelling layout concept to grab attention
-    User Input: ${userInput} 
-    Return format (JSON only):
-    JsonCopyEdit{
-      "title": {
-        "Title 1",
-        "seo score": 87
-      }
-      "title": {
-        "Title 2",
-        "sen score": 82
-      }
-      "title": {  
-        "Title 3",
-        "seo scorn": 78
-      }
-      "description": "Write a professional and engaging YouTube viden description here based on the input.",
-      "tags": ["tag", "tag", "tag", "tag", "tags", "tag", "tag7", "tag", "tag", "tag18"],
-      "image_prompts":[
-      {
-        "heading": "Heading Text 1"
-        "prompt": "Professional illustration for thumbnail image based on Title 1. Include elements such as..."
-      },
-      {
-        "heading": "Heading Text 2",
-        "prompt: "Professional illustration for thumbnail image based on Title 2. Include elements such as..."
-      }
-    ]} 
-    Make sure the thumbnail image prompt reflects the respective title context, includes visual style (3D/flat/vector), character/action/objects (if needed), background design, and text position ideas
-  `
-}
-
-
-export const GenrateAiContent = inngest.createFunction(
-  {id: 'ai/generate-content'},
-  {event: 'ai/generate-content'},
-  async({event, step})=>{
-    const {userInput, userEmail} = await event.data;
-
-    // await step.run('wait', async()=>{
-    //   await new Promise(resolve => setTimeout(resolve, 6000));
-    // })
-
-    // return "Content generation is paused for now.";
-
-    // to genrate title , discription , tags and thumbnail prompt
-    const gerateAiContent = await step.run(
-      'generateContent',
-      async()=>{
-        const completion = await openai.chat.completions.create({
-          model: AiModelForContent,
-          messages: [
-            {
-              role: 'user',
-              content: contentGentrationPrompt(userInput),
-            }
-          ],
-        });
-
-        const RawJson = completion.choices[0].message.content;
-        console.log("Generated Content:", RawJson);
-        const formatJsonString = RawJson?.replace('```json', "").trim().replace('```', '').trim(); // remove new lines
-        const formatedJson = formatJsonString && JSON.parse(formatJsonString)
-        return formatedJson;
-      }
-    )
-    // TO genrate thumbnail prompt
-    const generateImage = await step.run(
-      'generateImage',
-      async ()=>{
-          // const input = {
-          //   prompt: generateThumbnailPrompt,
-          //   aspect_ratio: "16:9",
-          //   output_format: "png",
-          //   safety_filter_level: 'block_only_high'
-          // };
-
-          // const output = await replicate.run("stability-ai/stable-diffusion", {
-          //   input
-          // });
-          // console.log(output);
-          //  //@ts-ignore
-          // return output.url()
-          console.log("generateImage started ---------------------")
-          const base64Image = await CloudflareGenerateImage(gerateAiContent?.image_prompts[0].prompt ?? "");
-          // const base64Image = await GoogleGenerateImage(generateThumbnailPrompt ?? ""); // DOESNT WORK
-          console.log("generateImage DONE ---------------------")
-          console.log("base64Image ---------------------",base64Image)
-          return base64Image;
+          })
+          return refernceImageUrl.url
         }
       )
+      : null;
 
-    // save image to cloud
-    const uploadThumbnail = await step.run('Upload Thubnail',async()=>{
-      const thumbnailUrl = await imageKit.upload({
-        // file: generateImage?.buffer??'',
-        file: Buffer.isBuffer(generateImage) ? generateImage : Buffer.from(generateImage.data ?? generateImage),
-        fileName: Date.now().toString()+'.png',
-        isPublished: true,
-        useUniqueFileName: false,
-      }) as any;
+    const thumbnailConcept = await step.run(
+      "plan-thumbnail-concept",
+      async () => generateThumbnailConcept(
+        String(userInput ?? ""),
+        uploadImageUrls
+      )
+    );
 
-      return thumbnailUrl.url;
+    // Keep the binary image inside one step. Inngest serializes step return values as JSON,
+    // so returning only the URL avoids moving a large Buffer between durable steps.
+    const uploadThumbnail = await step.run(
+      'generate-and-upload-image',
+      async () => {
+        return generateAndUploadThumbnail(
+          thumbnailConcept.prompt,
+          thumbnailConcept.heading
+        );
+      }
+    )
+
+    // Save thumbnail to db
+    const saveThumbnail = await step.run('Save Thumbnail', async () => {
+      // ✅ Fixed: .returning() takes no arguments in Drizzle
+      const result = await db.insert(AiThumbnail).values({
+        userInput: userInput,
+        thumbnailUrl: uploadThumbnail,
+        refImage: uploadImageUrls,
+        userEmail: userEmail,
+        createdAt: moment().format('YYYY-MM-DD')
+      }).returning()
+
+      return result;
     })
+
+    return saveThumbnail;
+  },
+)
+
+export const GenrateAiContent = inngest.createFunction(
+  { id: 'ai/generate-content' },
+  { event: 'ai/generate-content' },
+  async ({ event, step }) => {
+    const { userInput, userEmail } = await event.data;
+
+    const [gerateAiContent, thumbnailConcept] = await Promise.all([
+      step.run(
+        'generateContent',
+        async () => {
+          const completion = await openai.chat.completions.create({
+            model: AiModelForContent,
+            messages: [
+              {
+                role: 'user',
+                content: contentGentrationPrompt(userInput),
+              }
+            ],
+          });
+
+          const RawJson = completion.choices[0].message.content;
+          console.log("Generated Content:", RawJson);
+
+          const match = RawJson?.match(/```(?:json)?\s*([\s\S]*?)```/);
+          const cleanJson = match ? match[1].trim() : RawJson?.trim();
+
+          if (!cleanJson) throw new Error("No content generated");
+
+          return JSON.parse(cleanJson);
+        }
+      ),
+      step.run(
+        "plan-thumbnail-concept",
+        async () => generateThumbnailConcept(userInput)
+      ),
+    ])
+
+    const uploadThumbnail = await step.run(
+      'generate-and-upload-image',
+      async () => generateAndUploadThumbnail(
+        thumbnailConcept.prompt,
+        thumbnailConcept.heading
+      )
+    )
 
     const saveContent = await step.run(
       'save to Database',
-      async()=>{
+      async () => {
+        // ✅ Fixed: .returning() takes no arguments in Drizzle
         const result = await db.insert(AiContentTable).values({
           content: gerateAiContent,
           createdAt: moment().format('YYYY-MM-DD'),
           thumbnailUrl: uploadThumbnail,
           userEmail: userEmail,
           userInput: userInput,
-          //@ts-ignore
-        }).returning(AiContentTable)
+        }).returning()
 
-        console.log("result -from saveContent --------------------",result)
-
+        console.log("result -from saveContent --------------------", result)
         return result;
       }
     )
+
     return saveContent;
   }
 )
-
-

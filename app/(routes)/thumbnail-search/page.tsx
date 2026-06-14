@@ -1,106 +1,209 @@
-'use client'
-import { Button } from '@/components/ui/button'
-import axios from 'axios';
-import { Loader2, Search } from 'lucide-react'
-import React, { useState } from 'react'
-import ThumbnailSearchList from './_components/thumbnail-search-list';
-import { Skeleton } from '@/components/ui/skeleton';
+"use client"
+
+import { useEffect, useRef, useState } from "react"
+import type { FormEvent } from "react"
+import { GalleryThumbnails, Loader2, Search, X } from "lucide-react"
+
+import { Button } from "@/components/ui/button"
+import ThumbnailSearchList from "./_components/thumbnail-search-list"
 
 export type VideoInfo = {
-    id: string;
-    title: string;
-    thumbnail: string;
-    channelTitle: string;
-    viewCount: string;
-    likeCount: string;
-    commentCount: string;
-    publishedAt: string;
-    
+  id: string
+  title: string
+  thumbnail: string
+  channelTitle: string
+  viewCount: string
+  likeCount: string
+  commentCount: string
+  publishedAt: string
 }
 
+type SearchContext =
+  | { type: "query"; label: string }
+  | { type: "similar"; label: string; thumbnail: string; videoId: string }
+  | null
+
+const searchIdeas = [
+  "Minimal desk setup",
+  "AI productivity",
+  "Cinematic travel",
+]
+
 export default function ThumbnailSearch() {
-    const [userInput , setUserInput] = useState<string>();
-    const [loading, setLoading] = useState<boolean>(false);
-    const [videoList, setVideoList] = useState<VideoInfo[]>([]);
-    
-    const onSearch = async() => {
-        setLoading(true)
-        const result = await axios.get('/api/thumbnail-search?query='+ userInput)
-        console.log(result.data);
+  const [query, setQuery] = useState("")
+  const [loading, setLoading] = useState(false)
+  const [videoList, setVideoList] = useState<VideoInfo[]>([])
+  const [error, setError] = useState("")
+  const [hasSearched, setHasSearched] = useState(false)
+  const [searchContext, setSearchContext] = useState<SearchContext>(null)
+  const requestControllerRef = useRef<AbortController | null>(null)
+
+  const runSearch = async (
+    params: { query: string } | { thumbnailUrl: string; sourceTitle: string },
+    context: Exclude<SearchContext, null>,
+  ) => {
+    const previousContext = searchContext
+    requestControllerRef.current?.abort()
+    const controller = new AbortController()
+    requestControllerRef.current = controller
+
+    setLoading(true)
+    setError("")
+    setHasSearched(true)
+    setSearchContext(context)
+
+    try {
+      const requestUrl = new URL("/api/thumbnail-search", window.location.origin)
+      Object.entries(params).forEach(([key, value]) => {
+        requestUrl.searchParams.set(key, value)
+      })
+      const response = await fetch(requestUrl, { signal: controller.signal })
+      const data = await response.json()
+
+      if (!response.ok) throw new Error(data.error || "Thumbnail search failed.")
+      if (!Array.isArray(data)) throw new Error("Search returned an invalid response.")
+      setVideoList(data)
+    } catch (requestError) {
+      if (requestError instanceof DOMException && requestError.name === "AbortError") return
+      if (context.type === "query") {
+        setVideoList([])
+      } else {
+        setSearchContext(previousContext)
+      }
+      setError(
+        requestError instanceof Error
+          ? requestError.message
+          : "We could not complete this search. Please try again.",
+      )
+    } finally {
+      if (requestControllerRef.current === controller) {
         setLoading(false)
-        setVideoList(result.data);
+        requestControllerRef.current = null
+      }
     }
+  }
 
-    const SearchSimilarThumbnail = async (url: string) => {
-        setLoading(true)
-        const result = await axios.get('/api/thumbnail-search?thumbnailUrl='+url)
-        console.log(result.data);
-        setLoading(false)
-        setVideoList(result.data);
-    }
-    return (
-        <div className="max-w-6xl mx-auto px-4 py-12">
-            {/* Hero Section */}
-            <div className="text-center mb-12">
-                <h2 className="font-bold text-4xl md:text-5xl tracking-tight bg-gradient-to-r from-[#ff7917] to-[#584424] bg-clip-text text-transparent">
-                    AI Thumbnail Search
-                </h2>
-                <p className="mt-3 text-gray-500 text-lg max-w-2xl mx-auto">
-                    Instantly discover YouTube thumbnails that match your content using AI-powered visual search.
-                </p>
-            </div>
+  const onSearch = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    const cleanQuery = query.trim()
+    if (!cleanQuery || loading) return
+    runSearch({ query: cleanQuery }, { type: "query", label: cleanQuery })
+  }
 
-            {/* Search Bar Card */}
-            <div className="bg-white dark:bg-neutral-900 border border-gray-200 dark:border-neutral-800 rounded-2xl shadow-sm p-6 max-w-3xl mx-auto">
-                <div className="flex flex-col md:flex-row items-center gap-3">
-                <input
-                    type="text"
-                    placeholder="Enter title or keyword..."
-                    className="flex-1 px-4 py-3 border border-gray-300 dark:border-neutral-700 rounded-xl outline-none focus:ring-2 focus:ring-purple-500 text-gray-800 dark:text-gray-100 bg-gray-50 dark:bg-neutral-800"
-                    onChange={(e) => setUserInput(e.target.value)}
-                />
-                <Button
-                    className="px-6 py-3 bg-gradient-to-r from-[#ff7917] to-[#584424] text-white rounded-xl font-medium hover:opacity-90 transition disabled:opacity-50"
-                    onClick={onSearch}
-                    disabled={!userInput || loading}
-                >
-                    {loading ? (
-                    <Loader2 className="animate-spin" />
-                    ) : (
-                    <div className="flex items-center gap-2">
-                        <Search size={18} /> Search
-                    </div>
-                    )}
-                </Button>
-                </div>
-            </div>
+  const searchIdea = (idea: string) => {
+    setQuery(idea)
+    runSearch({ query: idea }, { type: "query", label: idea })
+  }
 
-            {/* Results Section */}
-            <div className="mt-12">
-                {loading ? (
-                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-                    {Array.from({ length: 8 }).map((_, index) => (
-                    <div
-                        key={index}
-                        className="flex flex-col space-y-3 rounded-xl overflow-hidden border bg-gray-50 dark:bg-neutral-900 dark:border-neutral-800 p-2"
-                    >
-                        <Skeleton className="h-[150px] w-full rounded-lg" />
-                        <div className="space-y-2 p-2">
-                        <Skeleton className="h-3 w-3/4 rounded" />
-                        <Skeleton className="h-3 w-1/2 rounded" />
-                        </div>
-                    </div>
-                    ))}
-                </div>
-                ) : (
-                    <ThumbnailSearchList
-                        videoList={videoList}
-                        SearchSimilarThumbnail={(url: string) =>
-                        SearchSimilarThumbnail(url)
-                        }
-                    />
-                )}
-            </div>
-            </div>
+  const searchSimilarThumbnail = (video: VideoInfo) => {
+    runSearch(
+      { thumbnailUrl: video.thumbnail, sourceTitle: video.title },
+      {
+        type: "similar",
+        label: video.title,
+        thumbnail: video.thumbnail,
+        videoId: video.id,
+      },
     )
+  }
+
+  const clearSearch = () => {
+    setQuery("")
+    setError("")
+  }
+
+  useEffect(() => {
+    return () => requestControllerRef.current?.abort()
+  }, [])
+
+  return (
+    <div className="dashboard-page thumbnail-search-page">
+      <header className="tool-page-header">
+        <p className="tool-page-eyebrow">Research tool</p>
+        <h1>Study what earns the click.</h1>
+        <p className="tool-page-description">
+          Search YouTube by topic, compare visual patterns, then use any result as
+          the starting point for a similarity search.
+        </p>
+      </header>
+
+      <form
+        className="tool-panel thumbnail-search-form"
+        aria-labelledby="thumbnail-search-title"
+        onSubmit={onSearch}
+      >
+        <div className="thumbnail-search-form__header">
+          <div>
+            <p className="thumbnail-search-step">01</p>
+            <h2 id="thumbnail-search-title">Choose a topic to explore</h2>
+          </div>
+          <span><GalleryThumbnails aria-hidden="true" /> YouTube research</span>
+        </div>
+
+        <div className="thumbnail-search-field">
+          <label htmlFor="thumbnail-search-query">Topic or video idea</label>
+          <div className="thumbnail-search-field__control">
+            <Search aria-hidden="true" />
+            <input
+              id="thumbnail-search-query"
+              type="search"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="Example: budget filmmaking setup"
+              autoComplete="off"
+              required
+            />
+            {query && (
+              <button
+                type="button"
+                onClick={clearSearch}
+                aria-label="Clear search"
+                title="Clear search"
+              >
+                <X aria-hidden="true" />
+              </button>
+            )}
+          </div>
+          <p>Use a focused phrase that describes the audience, topic, or visual niche.</p>
+        </div>
+
+        <div className="thumbnail-search-form__footer">
+          <div className="thumbnail-search-ideas" aria-label="Suggested searches">
+            <span>Try</span>
+            {searchIdeas.map((idea) => (
+              <button type="button" key={idea} onClick={() => searchIdea(idea)} disabled={loading}>
+                {idea}
+              </button>
+            ))}
+          </div>
+          <Button
+            type="submit"
+            disabled={loading || !query.trim()}
+            className="thumbnail-search-button"
+          >
+            {loading && searchContext?.type === "query" ? (
+              <Loader2 className="animate-spin" />
+            ) : (
+              <Search />
+            )}
+            {loading && searchContext?.type === "query" ? "Searching..." : "Search thumbnails"}
+          </Button>
+        </div>
+
+        {error && (
+          <div className="thumbnail-search-error" role="alert">
+            <p>{error}</p>
+          </div>
+        )}
+      </form>
+
+      <ThumbnailSearchList
+        videoList={videoList}
+        loading={loading}
+        hasSearched={hasSearched}
+        searchContext={searchContext}
+        onSimilar={searchSimilarThumbnail}
+      />
+    </div>
+  )
 }

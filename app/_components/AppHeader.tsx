@@ -1,18 +1,39 @@
-import { SidebarTrigger } from '@/components/ui/sidebar'
-import ProfileModal from "./ProfileModal";
-import React from 'react'
+"use client"
+
+import { SidebarTrigger } from "@/components/ui/sidebar"
+import { usePathname } from "next/navigation"
+import ProfileModal from "./ProfileModal"
+
+const pageNames: Record<string, string> = {
+  "/dashboard": "Dashboard",
+  "/ai-thumbnail-generator": "Thumbnail generator",
+  "/thumbnail-search": "Thumbnail search",
+  "/outlier": "Outlier finder",
+  "/ai-content-generator": "Content generator",
+  "/billing": "Billing",
+  "/coming-soon": "Coming soon",
+}
 
 function AppHeader() {
-    return (
-        <div className="p-4 shadow-sm flex items-center justify-between w-full bg-white dark:bg-gray-900">
-            {/* Left Section */}
-            <div className="flex items-center gap-3">
-                <SidebarTrigger />
-            
-            </div>
-            <ProfileModal />
+  const pathname = usePathname()
+  const title = pageNames[pathname] || "Imagine & Build"
+
+  return (
+    <header className="dashboard-header">
+      <div className="dashboard-header__title">
+        <SidebarTrigger
+          className="dashboard-sidebar-trigger"
+          aria-label="Open or close sidebar"
+          title="Open or close sidebar"
+        />
+        <div>
+          <p>Workspace</p>
+          <h2>{title}</h2>
         </div>
-    )
+      </div>
+      <ProfileModal />
+    </header>
+  )
 }
 
 export default AppHeader

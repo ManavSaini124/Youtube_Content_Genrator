@@ -1,16 +1,21 @@
 "use client"
 
-import React from "react"
 import {
   Sidebar,
   SidebarContent,
   SidebarFooter,
   SidebarGroup,
   SidebarGroupContent,
+  SidebarGroupLabel,
   SidebarHeader,
   SidebarMenu,
+  SidebarMenuButton,
+  SidebarMenuItem,
+  SidebarRail,
+  useSidebar,
 } from "@/components/ui/sidebar"
 import {
+  ArrowUpRight,
   ChartNoAxesColumn,
   GalleryThumbnails,
   Gauge,
@@ -18,106 +23,99 @@ import {
   ImageIcon,
   Lightbulb,
   Settings,
-  User2,
 } from "lucide-react"
-import Image from "next/image"
 import { usePathname } from "next/navigation"
-import { motion } from "framer-motion"
 import Link from "next/link"
 
-const items = [
+const workspaceItems = [
   { title: "Home", url: "/dashboard", icon: Home },
-  { title: "Thumbnails Generator", url: "/ai-thumbnail-generator", icon: ImageIcon },
-  { title: "Thumbnails Search", url: "/thumbnail-search", icon: GalleryThumbnails },
+  { title: "Content generator", url: "/ai-content-generator", icon: Lightbulb },
+  { title: "Thumbnail generator", url: "/ai-thumbnail-generator", icon: ImageIcon },
+  { title: "Thumbnail search", url: "/thumbnail-search", icon: GalleryThumbnails },
+  { title: "Outlier finder", url: "/outlier", icon: Gauge },
   { title: "Optimize", url: "/coming-soon", icon: ChartNoAxesColumn },
-  { title: "Outlier", url: "/outlier", icon: Gauge },
-  { title: "AI Content Generator", url: "/ai-content-generator", icon: Lightbulb },
+]
+
+const accountItems = [
   { title: "Billing", url: "/billing", icon: Settings },
 ]
 
 export function AppSidebar() {
   const path = usePathname()
+  const { isMobile, setOpenMobile } = useSidebar()
+
+  const closeMobileSidebar = () => {
+    if (isMobile) setOpenMobile(false)
+  }
+
+  const renderItems = (items: typeof workspaceItems) =>
+    items.map((item) => {
+      const active = path === item.url
+
+      return (
+        <SidebarMenuItem key={item.url}>
+          <SidebarMenuButton
+            asChild
+            isActive={active}
+            size="lg"
+            tooltip={item.title}
+            className="dashboard-sidebar__item"
+          >
+            <Link href={item.url} onClick={closeMobileSidebar}>
+              <item.icon aria-hidden="true" />
+              <span>{item.title}</span>
+            </Link>
+          </SidebarMenuButton>
+        </SidebarMenuItem>
+      )
+    })
 
   return (
-    <Sidebar className="bg-gradient-to-b from-[#ff7917]/10 via-[#584424]/10 to-[#68dbff]/10 shadow-lg border-r border-gray-200 dark:border-gray-800">
-      {/* Logo / Header */}
-      <SidebarHeader>
-        <div className="flex flex-col items-center justify-center p-6">
-          <div className="p-2 rounded-2xl  ">
-            <Link href="/">
-              <Image
-                src="/logo.svg"
-                alt="App Logo"
-                width={150}
-                height={70}
-                className="rounded-md"
-                priority
-              />
-            </Link>
-          </div>
-          <h2 className="mt-3 text-lg font-semibold gradient-text">
-            Imagine & Build
-          </h2>
-        </div>
+    <Sidebar className="dashboard-sidebar" variant="inset" collapsible="offcanvas">
+      <SidebarHeader className="dashboard-sidebar__header">
+        <Link className="dashboard-sidebar__brand" href="/" onClick={closeMobileSidebar}>
+          <span className="dashboard-sidebar__mark" aria-hidden="true">
+            <span />
+            <span />
+          </span>
+          <span className="dashboard-sidebar__brand-copy">
+            <strong>Imagine &amp; Build</strong>
+            <small>Creator workspace</small>
+          </span>
+        </Link>
       </SidebarHeader>
 
-      {/* Menu Items */}
-      <SidebarContent>
-        <SidebarGroup>
+      <SidebarContent className="dashboard-sidebar__content">
+        <SidebarGroup className="dashboard-sidebar__group">
+          <SidebarGroupLabel className="dashboard-sidebar__label">
+            Workspace
+          </SidebarGroupLabel>
           <SidebarGroupContent>
-            <SidebarMenu className="space-y-1 px-3 relative">
-              {items.map((item, index) => {
-                const active = path === item.url
-                return (
-                  <a
-                    key={index}
-                    href={item.url}
-                    className="relative flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium"
-                  >
-                    {/* Active background highlight */}
-                    {active && (
-                      <motion.span
-                        layoutId="activeSidebar"
-                        className="absolute inset-0 rounded-xl bg-gradient-to-r from-[#ff7917] via-[#584424] to-[#68dbff] shadow-md"
-                        transition={{ type: "spring", stiffness: 300, damping: 30 }}
-                      />
-                    )}
+            <SidebarMenu>{renderItems(workspaceItems)}</SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
 
-                    {/* Sliding indicator bar */}
-                    {active && (
-                      <motion.span
-                        layoutId="activeIndicator"
-                        className="absolute left-0 top-2 bottom-2 w-1 rounded-r-lg bg-[#ff7917]"
-                        transition={{ type: "spring", stiffness: 300, damping: 30 }}
-                      />
-                    )}
-
-                    <item.icon
-                      className={`h-5 w-5 relative z-10 transition-transform ${
-                        active ? "scale-110 text-white" : "text-gray-500 dark:text-gray-400"
-                      }`}
-                    />
-                    <span
-                      className={`relative z-10 ${
-                        active ? "text-white" : "text-gray-700 dark:text-gray-300"
-                      }`}
-                    >
-                      {item.title}
-                    </span>
-                  </a>
-                )
-              })}
-            </SidebarMenu>
+        <SidebarGroup className="dashboard-sidebar__group">
+          <SidebarGroupLabel className="dashboard-sidebar__label">
+            Account
+          </SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>{renderItems(accountItems)}</SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
 
-      {/* Footer */}
-      <SidebarFooter>
-        <div className="p-4 text-xs text-gray-400 dark:text-gray-500 text-center border-t border-gray-200 dark:border-gray-800">
-          © 2025 Imagine & Build
+      <SidebarFooter className="dashboard-sidebar__footer">
+        <div>
+          <span>Current plan</span>
+          <strong>Basic</strong>
         </div>
+        <Link href="/billing" onClick={closeMobileSidebar} aria-label="Manage billing">
+          <ArrowUpRight aria-hidden="true" />
+        </Link>
       </SidebarFooter>
+
+      <SidebarRail />
     </Sidebar>
   )
 }

@@ -1,315 +1,375 @@
 "use client"
-import { ArrowUp, ImagePlus, Loader2, Settings, User, X } from 'lucide-react'
-import React, { use, useEffect, useRef, useState } from 'react'
-import { motion, AnimatePresence } from "framer-motion"
-import axios from 'axios';
-import { RunStatus } from '@/services/GlobalApi';
-import Image from 'next/image';
-import ThumbnailList from './_components/ThumbnailList';
-import { Button } from '@/components/ui/button';
 
-function AiThumbnailGenerator() {
-    const [userInput, setUserInput] = useState<string>('');
-    const [referenceImage, setReferenceImage] = useState<any>();
-    const [userImage, setUserImage] = useState<any>();
-    const [referenceImagePreview, setReferenceImagePreview] = useState<string>('')
-    const [referenceUserImagePreview, setReferenceUserImagePreview] = useState<string>('')
-    const [loading, setLoading] = useState<boolean>(false)
-    const [outputThumbnailImage, setOutputThumbnailImage] = useState<string>('')
-    const [eventId, setEventId] = useState<string | null>(null);
-    const [progress, setProgress] = useState(10);
-    const isGenerating = useRef(false);
+import { useEffect, useRef, useState } from "react"
+import type { ChangeEvent, FormEvent } from "react"
+import Image from "next/image"
+import {
+  ArrowUpRight,
+  ImagePlus,
+  Loader2,
+  Sparkles,
+  Upload,
+  UserRound,
+  X,
+} from "lucide-react"
+import axios from "axios"
 
-    
-    const onHandleFileChange = (field: string, e: any) => {
-        const selectedFile = e.target.files?.[0];
-        if (!selectedFile) return;
+import { Button } from "@/components/ui/button"
+import ThumbnailList from "./_components/ThumbnailList"
 
-        // only accept safe formats
-        const allowedTypes = ["image/jpeg", "image/jpg", "image/png"];
-        if (!allowedTypes.includes(selectedFile.type)) {
-            alert("Only JPG and PNG images are allowed.");
-            return;
-        }
+type UploadKind = "reference" | "portrait"
 
-        if (field === 'referenceImageUpload') {
-            setReferenceImage(selectedFile);
-            setReferenceImagePreview(URL.createObjectURL(selectedFile));
-        } else {
-            setUserImage(selectedFile);
-            setReferenceUserImagePreview(URL.createObjectURL(selectedFile));
-        }
+type UploadFieldProps = {
+  accept: string
+  description: string
+  icon: typeof ImagePlus
+  id: string
+  label: string
+  preview: string
+  onChange: (event: ChangeEvent<HTMLInputElement>) => void
+  onRemove: () => void
+}
+
+function UploadField({
+  accept,
+  description,
+  icon: Icon,
+  id,
+  label,
+  preview,
+  onChange,
+  onRemove,
+}: UploadFieldProps) {
+  return (
+    <div className="thumbnail-upload">
+      <div className="thumbnail-upload__heading">
+        <div>
+          <label htmlFor={id}>{label}</label>
+          <p>{description}</p>
+        </div>
+        <span>Optional</span>
+      </div>
+
+      {preview ? (
+        <div className="thumbnail-upload__preview">
+          {/* Blob URLs are local-only, so next/image optimization does not apply. */}
+          <img src={preview} alt={`${label} preview`} />
+          <button type="button" onClick={onRemove} aria-label={`Remove ${label.toLowerCase()}`}>
+            <X aria-hidden="true" />
+          </button>
+        </div>
+      ) : (
+        <label className="thumbnail-upload__dropzone" htmlFor={id}>
+          <span className="thumbnail-upload__icon">
+            <Icon aria-hidden="true" />
+          </span>
+          <span>
+            <strong>Choose an image</strong>
+            <small>JPG or PNG</small>
+          </span>
+          <Upload aria-hidden="true" />
+        </label>
+      )}
+
+      <input
+        id={id}
+        className="sr-only"
+        type="file"
+        accept={accept}
+        onChange={onChange}
+      />
+    </div>
+  )
+}
+
+export default function AiThumbnailGenerator() {
+  const [brief, setBrief] = useState("")
+  const [referenceImage, setReferenceImage] = useState<File | null>(null)
+  const [portraitImage, setPortraitImage] = useState<File | null>(null)
+  const [referencePreview, setReferencePreview] = useState("")
+  const [portraitPreview, setPortraitPreview] = useState("")
+  const [loading, setLoading] = useState(false)
+  const [outputUrl, setOutputUrl] = useState("")
+  const [eventId, setEventId] = useState<string | null>(null)
+  const [error, setError] = useState("")
+  const [historyVersion, setHistoryVersion] = useState(0)
+
+  const isGenerating = useRef(false)
+  const pollTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const pollAbortRef = useRef<AbortController | null>(null)
+
+  const updateUpload = (kind: UploadKind, event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (!file) return
+
+    if (!["image/jpeg", "image/png"].includes(file.type)) {
+      setError("Please upload a JPG or PNG image.")
+      event.target.value = ""
+      return
     }
 
-    const onSubmit = async() =>{
-        if (isGenerating.current || loading) return;
-        isGenerating.current = true;
-        setLoading(true)
-        setOutputThumbnailImage("");
-        setEventId(null);
-        try{
-            const formData = new FormData()
-            userInput && formData.append('userInput', userInput)
-            referenceImage && formData.append('referenceImage', referenceImage)
-            userImage && formData.append('userImage', userImage)            
-            console.log(formData)
+    setError("")
+    const previewUrl = URL.createObjectURL(file)
 
-            const result = await axios.post('/api/generate-thumbnail', formData);
-            console.log("Thumbnail request result:",result.data)
-            setEventId(result.data.runId);
-        }catch(e){
-            console.log(e)
-            setLoading(false)
-        }
+    if (kind === "reference") {
+      if (referencePreview) URL.revokeObjectURL(referencePreview)
+      setReferenceImage(file)
+      setReferencePreview(previewUrl)
+    } else {
+      if (portraitPreview) URL.revokeObjectURL(portraitPreview)
+      setPortraitImage(file)
+      setPortraitPreview(previewUrl)
+    }
+  }
+
+  const removeUpload = (kind: UploadKind) => {
+    if (kind === "reference") {
+      if (referencePreview) URL.revokeObjectURL(referencePreview)
+      setReferenceImage(null)
+      setReferencePreview("")
+    } else {
+      if (portraitPreview) URL.revokeObjectURL(portraitPreview)
+      setPortraitImage(null)
+      setPortraitPreview("")
+    }
+  }
+
+  const onSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    if (isGenerating.current || loading || !brief.trim()) return
+
+    isGenerating.current = true
+    setLoading(true)
+    setError("")
+    setOutputUrl("")
+    setEventId(null)
+
+    try {
+      const formData = new FormData()
+      formData.append("userInput", brief.trim())
+      if (referenceImage) formData.append("referenceImage", referenceImage)
+      if (portraitImage) formData.append("userImage", portraitImage)
+
+      const result = await axios.post("/api/generate-thumbnail", formData)
+      if (!result.data.runId) throw new Error("The generation job did not start.")
+      setEventId(result.data.runId)
+    } catch (requestError) {
+      console.error("Thumbnail generation failed:", requestError)
+      setError("We could not start this thumbnail. Check your connection and try again.")
+      setLoading(false)
+      isGenerating.current = false
+    }
+  }
+
+  useEffect(() => {
+    if (!eventId) return
+    let active = true
+
+    const finishWithError = (message: string) => {
+      if (!active) return
+      setError(message)
+      setLoading(false)
+      isGenerating.current = false
     }
 
     const pollRunStatus = async () => {
-        if (!eventId) return;
+      pollAbortRef.current = new AbortController()
 
-        try {
-            const res = await fetch(`/api/run-status?id=${eventId}`);
-            const data = await res.json();
+      try {
+        const response = await fetch(`/api/run-status?id=${eventId}`, {
+          signal: pollAbortRef.current.signal,
+        })
+        const data = await response.json()
+        if (!response.ok) throw new Error(data.error || "Failed to fetch run status")
 
-            if (res.ok) {
-                const status = data.status?.[0];
-                console.log("Run status:", status);
-
-                if (status?.status === "Completed") {
-                    // assuming output is array of URLs
-                    const output = status?.output?.[0];
-                    console.log("Run completed, thumbnail output:", output);
-
-                    setOutputThumbnailImage(output?.thumbnailUrl || output); 
-                    setLoading(false);
-                    isGenerating.current = false;
-                    return;
-                }
-
-                if (status?.status === "Cancelled") {
-                    setLoading(false);
-                    isGenerating.current = false;
-                    return;
-                }
-
-                // continue polling
-                setTimeout(pollRunStatus, 5000);
-            } else {
-                throw new Error(data.error || "Failed to fetch run status");
-            }
-        } catch (err) {
-            console.error("Error polling thumbnail run status:", err);
-            setLoading(false);
-            isGenerating.current = false;
+        const status = data.status?.[0]
+        if (status?.status === "Completed") {
+          if (!active) return
+          const output = status.output?.[0]
+          const thumbnailUrl = output?.thumbnailUrl || output
+          if (!thumbnailUrl) {
+            finishWithError("The job finished without an image. Please try again.")
+            return
+          }
+          setOutputUrl(thumbnailUrl)
+          setLoading(false)
+          setHistoryVersion((version) => version + 1)
+          isGenerating.current = false
+          return
         }
-    };
 
-    useEffect(() => {
-        if (eventId) {
-        pollRunStatus();
+        if (status?.status === "Cancelled" || status?.status === "Failed") {
+          finishWithError("This generation did not complete. Please try again.")
+          return
         }
-    }, [eventId]);
 
-    useEffect(() => {
-        if (loading) {
-            setProgress(10); // start from 10%
-            const interval = setInterval(() => {
-            setProgress((prev) => {
-                // Move slowly until ~90%
-                if (prev < 90) {
-                return prev + Math.random() * 3; // add 1–3% at a time
-                }
-                return prev; // stop at 90% until real completion
-            });
-            }, 500); // update every 0.5s
-
-            return () => clearInterval(interval);
-        } else {
-            setProgress(100); // instantly complete when finished
+        if (active) pollTimeoutRef.current = setTimeout(pollRunStatus, 1000)
+      } catch (pollError) {
+        if (!active || (pollError instanceof DOMException && pollError.name === "AbortError")) {
+          return
         }
-    }, [loading]);
+        console.error("Error polling thumbnail run status:", pollError)
+        finishWithError("We lost contact with the generation job. Please try again.")
+      }
+    }
 
+    pollRunStatus()
 
-//AI Thumbnail Generator
-// Your ideas are not just limited to words. Use AI to generate stunning thumbnails for your content.
+    return () => {
+      active = false
+      pollAbortRef.current?.abort()
+      if (pollTimeoutRef.current) clearTimeout(pollTimeoutRef.current)
+    }
+  }, [eventId])
 
-    return (
-        <div>
-            <div className='px-10 md:px-20 lg:px-40'>
-                {/* Header */}
-                <motion.div
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.6 }}
-                    className='flex items-center justify-center mt-20 flex-col gap-2'
-                >
-                    <h2 className='font-bold text-4xl md:text-5xl tracking-tight bg-gradient-to-r from-[#ff7917] to-[#584424] bg-clip-text text-transparent'>
-                        AI Thumbnail Generator
-                    </h2>
-                    <p className='text-gray-500 dark:text-gray-400 text-center max-w-2xl '>
-                        Your ideas are not just limited to words. Use AI to generate stunning thumbnails for your content.
-                    </p>
-                </motion.div>
+  useEffect(() => {
+    return () => {
+      if (referencePreview) URL.revokeObjectURL(referencePreview)
+      if (portraitPreview) URL.revokeObjectURL(portraitPreview)
+    }
+  }, [referencePreview, portraitPreview])
 
-                {/* Status / Output */}
-                <div className='mt-6'>
-                    {loading ? (
-                        // Branded loading card with gradient frame
-                        <div className="relative rounded-2xl p-[2px] bg-gradient-to-r from-[#ff7917] via-[#584424] to-[#68dbff]">
-                            <div className="rounded-2xl h-[350px] bg-black/80 flex flex-col items-center justify-center gap-4">
-                                <Loader2 className="w-7 h-7 animate-spin text-white" />
-                                <p className="text-white/80">Generating your thumbnail…</p>
-                                <div className="w-1/2 h-1.5 bg-white/10 rounded-full overflow-hidden">
-                                    <div
-                                        className="h-full bg-gradient-to-r from-[#ff7917] via-[#584424] to-[#68dbff] rounded-full transition-all duration-500"
-                                        style={{ width: `${progress}%` }}
-                                    />
-                                </div>
-                            </div>
-                        </div>
-                    ) : (
-                        <AnimatePresence>
-                            {outputThumbnailImage && (
-                                <motion.div
-                                    key={outputThumbnailImage}
-                                    initial={{ opacity: 0, scale: 0.98 }}
-                                    animate={{ opacity: 1, scale: 1 }}
-                                    exit={{ opacity: 0 }}
-                                    transition={{ duration: 0.4 }}
-                                    className="relative rounded-2xl overflow-hidden shadow-lg"
-                                >
-                                    <Image
-                                        src={outputThumbnailImage}
-                                        width={1200}
-                                        height={800}
-                                        alt='thumbnail'
-                                        className='w-full h-[350px] object-cover'
-                                        priority
-                                    />
-                                    <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/35 via-transparent to-transparent" />
-                                    <div className="pointer-events-none absolute inset-0 ring-1 ring-white/10" />
-                                </motion.div>
-                            )}
-                        </AnimatePresence>
-                    )}
-                </div>
+  return (
+    <div className="dashboard-page thumbnail-page">
+      <header className="tool-page-header">
+        <p className="tool-page-eyebrow">Creator tool</p>
+        <h1>Make the click feel inevitable.</h1>
+        <p className="tool-page-description">
+          Describe the video, add optional visual references, and generate a polished
+          YouTube thumbnail built around one clear idea.
+        </p>
+      </header>
 
-                {/* Input box */}
-                <motion.div
-                    initial={{ scale: 0.95, opacity: 0 }}
-                    animate={{ scale: 1, opacity: 1 }}
-                    transition={{ duration: 0.5 }}
-                    className='flex gap-5 items-center p-3 border rounded-xl mt-10 bg-white dark:bg-neutral-900 shadow-sm'
-                >
-                    <textarea
-                        placeholder='Enter the content you want to generate a thumbnail for'
-                        className='w-full outline-none bg-transparent resize-none text-gray-800 dark:text-gray-100'
-                        onChange={(e) => { setUserInput(e.target.value) }}
-                    />
-                    <Button
-                        onClick={onSubmit}
-                        disabled={loading || !userInput}
-                        className="px-6 py-3 bg-gradient-to-r from-[#ff7917] via-[#584424] to-[#68dbff] text-white rounded-xl font-medium hover:opacity-90 transition disabled:opacity-50"
-                    >
-                        {loading ? (
-                            <Loader2 className="w-5 h-5 animate-spin" />
-                        ) : (
-                            <div className="flex items-center gap-2">
-                            <Settings size={18} /> Generate
-                            </div>
-                        )}
-                    </Button>
-                </motion.div>
-
-                {/* Image uploads */}
-                <div className='mt-5 flex gap-5'>
-                    {/* Reference Image */}
-                    <label htmlFor="referenceImageUpload" className='w-full'>
-                        <AnimatePresence>
-                            {referenceImagePreview ? (
-                                <motion.div
-                                    initial={{ opacity: 0, scale: 0.85 }}
-                                    animate={{ opacity: 1, scale: 1 }}
-                                    exit={{ opacity: 0, scale: 0.9 }}
-                                    className='relative'
-                                >
-                                    <X
-                                        className='absolute top-2 right-2 text-white cursor-pointer bg-black/40 p-1 rounded-full hover:scale-110 transition'
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            setReferenceImage(null);
-                                            setReferenceImagePreview('');
-                                        }}
-                                    />
-                                    <img src={referenceImagePreview}
-                                        alt="Reference"
-                                        className='w-full h-full object-cover rounded-xl shadow-md'
-                                    />
-                                </motion.div>
-                            ) : (
-                                <motion.div
-                                    whileHover={{ scale: 1.05 }}
-                                    className='p-4 w-full border rounded-xl bg-white dark:bg-neutral-900 flex gap-2 items-center justify-center cursor-pointer shadow-sm transition'
-                                >
-                                    <ImagePlus className="text-gray-600 dark:text-gray-300" />
-                                    <h2 className="text-gray-600 dark:text-gray-300"> Reference Image </h2>
-                                </motion.div>
-                            )}
-                        </AnimatePresence>
-                    </label>
-                    <input
-                        type='file'
-                        id="referenceImageUpload"
-                        className='hidden'
-                        onChange={(e) => onHandleFileChange("referenceImageUpload", e)}
-                        accept='.jpg, .jpeg, .png'
-                    />
-
-                    {/* User Image */}
-                    <label htmlFor="referenceUserImage" className='w-full'>
-                        <AnimatePresence>
-                            {referenceUserImagePreview ? (
-                                <motion.div
-                                    initial={{ opacity: 0, scale: 0.95 }}
-                                    animate={{ opacity: 1, scale: 1 }}
-                                    exit={{ opacity: 0, scale: 0.9 }}
-                                    className='relative'
-                                >
-                                    <X
-                                        className='absolute top-2 right-2 text-white cursor-pointer bg-black/40 p-1 rounded-full hover:scale-110 transition'
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            setUserImage(null);
-                                            setReferenceUserImagePreview('');
-                                        }}
-                                    />
-                                    <img src={referenceUserImagePreview}
-                                        alt="User"
-                                        className='w-full h-full object-cover rounded-xl shadow-md'
-                                    />
-                                </motion.div>
-                            ) : (
-                                <motion.div
-                                    whileHover={{ scale: 1.05 }}
-                                    className='p-4 w-full border rounded-xl bg-secondary flex gap-2 items-center justify-center cursor-pointer transition'
-                                >
-                                    <User className="text-gray-600 dark:text-gray-300"  />
-                                    <h2 className="text-gray-600 dark:text-gray-300"> User Image </h2>
-                                </motion.div>
-                            )}
-                        </AnimatePresence>
-                    </label>
-                    <input
-                        type='file'
-                        id="referenceUserImage"
-                        className='hidden'
-                        onChange={(e) => onHandleFileChange("referenceUserImage", e)}
-                        accept='.jpg, .jpeg, .png'
-                    />
-                </div>
+      <div className="thumbnail-workbench">
+        <form
+          className="tool-panel thumbnail-form"
+          aria-labelledby="thumbnail-brief-title"
+          onSubmit={onSubmit}
+        >
+          <div className="thumbnail-form__intro">
+            <div>
+              <p className="thumbnail-step">01</p>
+              <h2 id="thumbnail-brief-title">Build your creative brief</h2>
             </div>
-            <ThumbnailList/>
-        </div>
-    )
-}
+            <p>Lead with the subject, emotion, and any words that must appear.</p>
+          </div>
 
-export default AiThumbnailGenerator
+          <div className="thumbnail-field">
+            <label htmlFor="thumbnail-brief">Video idea</label>
+            <textarea
+              id="thumbnail-brief"
+              value={brief}
+              onChange={(event) => setBrief(event.target.value)}
+              placeholder="Example: A dramatic before-and-after desk setup, warm lighting, surprised expression, text: $50 vs $5,000"
+              maxLength={600}
+              required
+            />
+            <div className="thumbnail-field__meta">
+              <span>Be specific about mood, subject, composition, and text.</span>
+              <span>{brief.length}/600</span>
+            </div>
+          </div>
+
+          <div className="thumbnail-assets">
+            <UploadField
+              id="reference-image"
+              label="Style reference"
+              description="Guide the composition or visual mood."
+              icon={ImagePlus}
+              preview={referencePreview}
+              accept=".jpg,.jpeg,.png"
+              onChange={(event) => updateUpload("reference", event)}
+              onRemove={() => removeUpload("reference")}
+            />
+            <UploadField
+              id="portrait-image"
+              label="Creator portrait"
+              description="Place yourself or another subject in the frame."
+              icon={UserRound}
+              preview={portraitPreview}
+              accept=".jpg,.jpeg,.png"
+              onChange={(event) => updateUpload("portrait", event)}
+              onRemove={() => removeUpload("portrait")}
+            />
+          </div>
+
+          {error && (
+            <div className="thumbnail-error" role="alert">
+              <p>{error}</p>
+            </div>
+          )}
+
+          <div className="thumbnail-form__footer">
+            <p>Generation usually takes a minute or two.</p>
+            <Button
+              type="submit"
+              disabled={loading || !brief.trim()}
+              className="thumbnail-generate-button"
+            >
+              {loading ? <Loader2 className="animate-spin" /> : <Sparkles />}
+              {loading ? "Creating thumbnail..." : "Generate thumbnail"}
+            </Button>
+          </div>
+        </form>
+
+        <section className="thumbnail-preview" aria-live="polite" aria-labelledby="preview-title">
+          <div className="thumbnail-preview__header">
+            <div>
+              <p className="thumbnail-step">02</p>
+              <h2 id="preview-title">Generation preview</h2>
+            </div>
+            <span>16:9 output</span>
+          </div>
+
+          <div className="thumbnail-preview__canvas">
+            {loading ? (
+              <div className="thumbnail-preview__state">
+                <span className="thumbnail-preview__loader">
+                  <Loader2 aria-hidden="true" />
+                </span>
+                <strong>Composing your thumbnail</strong>
+                <p>We are shaping the subject, hierarchy, and final details.</p>
+              </div>
+            ) : outputUrl ? (
+              <>
+                <Image
+                  src={outputUrl}
+                  fill
+                  sizes="(min-width: 1024px) 45vw, 100vw"
+                  alt={`Generated thumbnail for: ${brief}`}
+                  className="thumbnail-preview__image"
+                  priority
+                />
+                <a
+                  className="thumbnail-preview__open"
+                  href={outputUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  Open full size
+                  <ArrowUpRight aria-hidden="true" />
+                </a>
+              </>
+            ) : (
+              <div className="thumbnail-preview__state">
+                <span className="thumbnail-preview__placeholder">
+                  <ImagePlus aria-hidden="true" />
+                </span>
+                <strong>Your next thumbnail starts here</strong>
+                <p>Complete the creative brief, then generate to see the final frame.</p>
+              </div>
+            )}
+          </div>
+
+          <div className="thumbnail-preview__notes">
+            <span>Clear focal point</span>
+            <span>High contrast</span>
+            <span>Mobile readable</span>
+          </div>
+        </section>
+      </div>
+
+      <ThumbnailList refreshKey={historyVersion} />
+    </div>
+  )
+}

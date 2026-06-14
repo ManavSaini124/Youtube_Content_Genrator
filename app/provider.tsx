@@ -1,8 +1,7 @@
 "use client"
 
 import { useUser } from '@clerk/nextjs';
-import axios from 'axios';
-import React, { useContext, useEffect, useState } from 'react'
+import React, { useEffect } from 'react'
 
 
 function Provider({
@@ -11,14 +10,29 @@ function Provider({
         children: React.ReactNode;
     }>) 
     {
-        const { user } = useUser();
+        const { user, isLoaded } = useUser();
         useEffect(() => {
-            user && createNewUser();
-        }, [user]);
+            if (!isLoaded || !user) return;
 
-        const createNewUser = async () => {
-            const result = await axios.post('/api/user');
-        }
+            const syncKey = `user-synced:${user.id}`;
+            if (sessionStorage.getItem(syncKey)) return;
+
+            const controller = new AbortController();
+            fetch('/api/user', {
+                method: 'POST',
+                signal: controller.signal,
+            })
+                .then((response) => {
+                    if (!response.ok) throw new Error('Failed to sync user');
+                    sessionStorage.setItem(syncKey, 'true');
+                })
+                .catch((error) => {
+                    if (error instanceof DOMException && error.name === 'AbortError') return;
+                    console.error(error);
+                });
+
+            return () => controller.abort();
+        }, [isLoaded, user?.id]);
 
         return (
             <div>

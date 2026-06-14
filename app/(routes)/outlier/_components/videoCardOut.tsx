@@ -1,69 +1,116 @@
-import React from "react";
-import { VideoInfoOutlier } from "../page";
-import Image from "next/image";
-import { Eye, ThumbsUp, MessageCircle, Star } from "lucide-react";
-import { motion } from "framer-motion";
+"use client"
+
+import Image from "next/image"
+import {
+  ArrowUpRight,
+  CalendarDays,
+  Eye,
+  Flame,
+  Gauge,
+  MessageCircle,
+  ThumbsUp,
+} from "lucide-react"
+
+import type { VideoInfoOutlier } from "../page"
 
 type Props = {
-  VideoInfo: VideoInfoOutlier;
-};
-
-function VideoCardOut({ VideoInfo }: Props) {
-  return (
-    <motion.div 
-      whileHover={{ y: -6, scale: 1.02 }}
-      transition={{ type: "spring", stiffness: 200 }}
-      className="group relative rounded-2xl overflow-hidden bg-white dark:bg-neutral-900 border border-gray-200 dark:border-neutral-800 shadow-sm hover:shadow-xl transition-all"
-    >
-      {/* Thumbnail */}
-      <div className="relative w-full h-48 overflow-hidden">
-        <Image
-          src={VideoInfo.thumbnail}
-          alt={VideoInfo.title}
-          fill
-          className="object-cover group-hover:scale-105 transition-transform duration-500"
-        />
-        {VideoInfo.isOutlier && (
-          <span className="absolute top-3 left-3 bg-gradient-to-r from-orange-500 to-yellow-500 text-white text-xs font-semibold px-3 py-1 rounded-full shadow-lg">
-            Outlier
-          </span>
-        )}
-      </div>
-
-      {/* Info Section */}
-      <div className="p-4">
-        <h3 className="font-semibold text-gray-900 dark:text-gray-100 line-clamp-2 mb-1">
-          {VideoInfo.title}
-        </h3>
-        <p className="text-sm text-gray-500 dark:text-gray-400 mb-3">
-          {VideoInfo.channelTitle}
-        </p>
-
-        {/* Stats Row */}
-        <div className="flex flex-wrap items-center gap-4 text-sm text-gray-500 dark:text-gray-400">
-          <span className="flex items-center gap-1">
-            <Eye size={16} /> {VideoInfo.viewCount.toLocaleString()}
-          </span>
-          <span className="flex items-center gap-1">
-            <ThumbsUp size={16} /> {VideoInfo.likeCount.toLocaleString()}
-          </span>
-          {VideoInfo.commentCount > 0 && (
-            <span className="flex items-center gap-1">
-              <MessageCircle size={16} /> {VideoInfo.commentCount.toLocaleString()}
-            </span>
-          )}
-        </div>
-
-        {/* Smart Score */}
-        <div className="mt-3 flex items-center justify-between">
-          <span className="text-xs text-gray-400">Smart Score</span>
-          <span className="flex items-center gap-1 font-semibold text-orange-500">
-            <Star size={14} className="fill-orange-500 text-orange-500" /> {VideoInfo.smartScore}
-          </span>
-        </div>
-      </div>
-    </motion.div>
-  );
+  video: VideoInfoOutlier
+  rank: number
 }
 
-export default VideoCardOut;
+const compactNumber = new Intl.NumberFormat("en", {
+  notation: "compact",
+  maximumFractionDigits: 1,
+})
+
+const shortDate = new Intl.DateTimeFormat("en", {
+  month: "short",
+  year: "numeric",
+})
+
+function formatDate(value: string) {
+  const date = new Date(value)
+  return Number.isNaN(date.getTime()) ? "Unknown date" : shortDate.format(date)
+}
+
+export default function VideoCardOut({ video, rank }: Props) {
+  const breakout = video.outlierDirection === "high"
+
+  return (
+    <article className="outlier-card" data-breakout={breakout}>
+      <a
+        className="outlier-card__media"
+        href={`https://www.youtube.com/watch?v=${video.id}`}
+        target="_blank"
+        rel="noreferrer"
+        aria-label={`Open ${video.title} on YouTube`}
+      >
+        <Image
+          src={video.thumbnail}
+          alt=""
+          fill
+          sizes="(min-width: 1024px) 30vw, (min-width: 640px) 50vw, 100vw"
+        />
+        <span className="outlier-card__rank">#{rank}</span>
+        {breakout && (
+          <span className="outlier-card__badge">
+            <Flame aria-hidden="true" />
+            Breakout
+          </span>
+        )}
+        <span className="outlier-card__open">
+          View on YouTube
+          <ArrowUpRight aria-hidden="true" />
+        </span>
+      </a>
+
+      <div className="outlier-card__body">
+        <div className="outlier-card__title">
+          <h3>{video.title}</h3>
+          <p>{video.channelTitle}</p>
+        </div>
+
+        <div className="outlier-card__signal">
+          <div>
+            <span>Performance index</span>
+            <strong>{video.smartScore.toFixed(2)}x</strong>
+          </div>
+          <div className="outlier-card__meter" aria-hidden="true">
+            <span style={{ transform: `scaleX(${Math.min(video.smartScore / 3, 1)})` }} />
+          </div>
+          <p>
+            {breakout
+              ? `${video.outlierScore.toFixed(2)} IQR above the expected range`
+              : video.outlierDirection === "low"
+                ? `${video.outlierScore.toFixed(2)} IQR below the expected range`
+                : "Within the expected topic range"}
+          </p>
+        </div>
+
+        <dl className="outlier-card__metrics">
+          <div>
+            <dt><Eye aria-hidden="true" /> Views</dt>
+            <dd>{compactNumber.format(video.viewCount)}</dd>
+          </div>
+          <div>
+            <dt><Flame aria-hidden="true" /> Daily</dt>
+            <dd>{compactNumber.format(video.viewsPerDay)}</dd>
+          </div>
+          <div>
+            <dt><Gauge aria-hidden="true" /> Engagement</dt>
+            <dd>{video.engagementRate.toFixed(2)}%</dd>
+          </div>
+          <div>
+            <dt><CalendarDays aria-hidden="true" /> Published</dt>
+            <dd>{formatDate(video.publishedAt)}</dd>
+          </div>
+        </dl>
+
+        <div className="outlier-card__social">
+          <span><ThumbsUp aria-hidden="true" /> {compactNumber.format(video.likeCount)}</span>
+          <span><MessageCircle aria-hidden="true" /> {compactNumber.format(video.commentCount)}</span>
+        </div>
+      </div>
+    </article>
+  )
+}

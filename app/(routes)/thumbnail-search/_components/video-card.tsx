@@ -1,61 +1,109 @@
-import React from "react";
-import { VideoInfo } from "../page";
-import Image from "next/image";
-import { Eye, ThumbsUp, MessageCircle } from "lucide-react";
+"use client"
+
+import Image from "next/image"
+import {
+  ArrowUpRight,
+  CalendarDays,
+  Eye,
+  Loader2,
+  MessageCircle,
+  ScanSearch,
+  ThumbsUp,
+} from "lucide-react"
+
+import type { VideoInfo } from "../page"
 
 type Props = {
-  VideoInfo: VideoInfo;
-  onSimilar: (url: string) => void;
-};
-
-function VideoCard({ VideoInfo, onSimilar }: Props) {
-  return (
-    <div className="group relative rounded-2xl overflow-hidden bg-white dark:bg-neutral-900 border border-gray-200 dark:border-neutral-800 shadow-sm hover:shadow-xl transition-all duration-300">
-      {/* Thumbnail */}
-      <div className="relative w-full h-48 overflow-hidden">
-        <Image
-          src={VideoInfo.thumbnail}
-          alt={VideoInfo.title}
-          fill
-          className="object-cover group-hover:scale-105 transition-transform duration-500"
-        />
-        {/* Hover Overlay */}
-        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition">
-          <button
-            onClick={() => onSimilar(VideoInfo.thumbnail)}
-            className="px-4 py-2 rounded-lg bg-gradient-to-r from-purple-600 to-pink-500 text-white font-medium shadow-lg hover:opacity-90 transition"
-          >
-            Find Similar
-          </button>
-        </div>
-      </div>
-
-      {/* Info Section */}
-      <div className="p-4">
-        <h3 className="font-semibold text-gray-900 dark:text-gray-100 line-clamp-2 mb-1">
-          {VideoInfo.title}
-        </h3>
-        <p className="text-sm text-gray-500 dark:text-gray-400 mb-3">
-          {VideoInfo.channelTitle}
-        </p>
-
-        {/* Stats Row */}
-        <div className="flex items-center gap-4 text-sm text-gray-500 dark:text-gray-400">
-          <span className="flex items-center gap-1">
-            <Eye size={16} /> {VideoInfo.viewCount}
-          </span>
-          <span className="flex items-center gap-1">
-            <ThumbsUp size={16} /> {VideoInfo.likeCount}
-          </span>
-          {VideoInfo.commentCount && (
-            <span className="flex items-center gap-1">
-              <MessageCircle size={16} /> {VideoInfo.commentCount}
-            </span>
-          )}
-        </div>
-      </div>
-    </div>
-  );
+  video: VideoInfo
+  onSimilar: (video: VideoInfo) => void
+  similarLoading: boolean
+  searchDisabled: boolean
 }
 
-export default VideoCard;
+const compactNumber = new Intl.NumberFormat("en", {
+  notation: "compact",
+  maximumFractionDigits: 1,
+})
+
+const shortDate = new Intl.DateTimeFormat("en", {
+  month: "short",
+  year: "numeric",
+})
+
+function formatCount(value: string) {
+  const count = Number(value)
+  return Number.isFinite(count) ? compactNumber.format(count) : "0"
+}
+
+function formatDate(value: string) {
+  const date = new Date(value)
+  return Number.isNaN(date.getTime()) ? "Unknown date" : shortDate.format(date)
+}
+
+export default function VideoCard({
+  video,
+  onSimilar,
+  similarLoading,
+  searchDisabled,
+}: Props) {
+  return (
+    <article className="thumbnail-search-card">
+      <a
+        className="thumbnail-search-card__media"
+        href={`https://www.youtube.com/watch?v=${video.id}`}
+        target="_blank"
+        rel="noreferrer"
+        aria-label={`Open ${video.title} on YouTube`}
+      >
+        <Image
+          src={video.thumbnail}
+          alt=""
+          fill
+          sizes="(min-width: 1024px) 30vw, (min-width: 640px) 50vw, 100vw"
+        />
+        <span>
+          View on YouTube
+          <ArrowUpRight aria-hidden="true" />
+        </span>
+      </a>
+
+      <div className="thumbnail-search-card__body">
+        <div>
+          <h3>{video.title}</h3>
+          <p>{video.channelTitle}</p>
+        </div>
+
+        <dl className="thumbnail-search-card__metrics">
+          <div title="Views">
+            <dt><Eye aria-hidden="true" /><span className="sr-only">Views</span></dt>
+            <dd>{formatCount(video.viewCount)}</dd>
+          </div>
+          <div title="Likes">
+            <dt><ThumbsUp aria-hidden="true" /><span className="sr-only">Likes</span></dt>
+            <dd>{formatCount(video.likeCount)}</dd>
+          </div>
+          {video.commentCount && (
+            <div title="Comments">
+              <dt><MessageCircle aria-hidden="true" /><span className="sr-only">Comments</span></dt>
+              <dd>{formatCount(video.commentCount)}</dd>
+            </div>
+          )}
+          <div title="Published">
+            <dt><CalendarDays aria-hidden="true" /><span className="sr-only">Published</span></dt>
+            <dd>{formatDate(video.publishedAt)}</dd>
+          </div>
+        </dl>
+
+        <button
+          className="thumbnail-search-card__similar"
+          type="button"
+          onClick={() => onSimilar(video)}
+          disabled={searchDisabled}
+        >
+          {similarLoading ? <Loader2 aria-hidden="true" /> : <ScanSearch aria-hidden="true" />}
+          {similarLoading ? "Finding similar..." : "Find similar thumbnails"}
+        </button>
+      </div>
+    </article>
+  )
+}
