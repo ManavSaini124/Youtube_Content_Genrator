@@ -1,29 +1,30 @@
-# YouTube Content Generator
+# Imagine & Build
 
-An AI-powered web application that helps YouTube creators generate optimized content ideas, titles, descriptions, tags, and thumbnails. Built with modern web technologies, it leverages AI models for content creation and image generation to supercharge channel growth.
+An AI-powered creator workspace for planning YouTube videos, generating titles and descriptions, creating thumbnails, researching visual references, and finding trend signals from one focused dashboard.
 
 ## Description
 
-This project is a full-stack Next.js application designed to assist YouTube creators in producing high-quality, SEO-optimized content. Users can input video ideas or topics, and the AI generates:
+This project is a full-stack Next.js application designed to help YouTube creators move from an idea to a publish-ready package. Users can input video ideas or topics, and the AI generates:
+
 - SEO-optimized titles with scores
 - Engaging descriptions
 - Relevant tags
 - Thumbnail prompts and AI-generated thumbnails
 
-The app includes user authentication, a dashboard, billing integration, and background processing for AI tasks. It uses serverless functions for efficient AI workflows and integrates with cloud services for image handling.
+The app includes Clerk authentication, a warm studio dashboard UI, billing-plan previews, YouTube research tools, and Inngest-powered background processing for AI tasks.
 
 ## Features
 
 - **AI Content Generator**: Input a topic to generate titles, descriptions, tags, and thumbnail prompts.
 - **AI Thumbnail Generator**: Generate custom thumbnails based on user input, reference images, or user photos.
-- **Dashboard**: Overview of features and welcome banner.
-- **Billing & Checkout**: Subscription plans with Stripe integration (via Clerk).
+- **Dashboard**: Warm studio workspace with quick access to every creator tool.
+- **Billing**: Basic access plus preview plan details for future paid checkout.
 - **Authentication**: Secure sign-in/sign-up using Clerk.
 - **Outlier Detection**: Analyze video performance outliers.
 - **Trending Keywords**: Rank trend signals inferred from the current YouTube
   popular-video chart by region and category, with source-video evidence.
 - **Thumbnail Search**: Search YouTube thumbnails by topic or visual similarity.
-- **Responsive Design**: Mobile-friendly UI with dark mode support.
+- **Responsive Design**: Mobile-friendly warm studio UI with shared design tokens.
 - **Background Processing**: Uses Inngest for asynchronous AI tasks like content and image generation.
 
 ## Tech Stack
@@ -43,15 +44,16 @@ The app includes user authentication, a dashboard, billing integration, and back
 - **Inngest**: Serverless event-driven workflows for background jobs (e.g., AI processing).
 
 ### AI & Integrations
-- **OpenRouter (OpenAI-compatible)**: For generating content (titles, descriptions, tags) using models like Mistral.
-- **Cloudflare AI Workers**: Image generation using Flux-1 model.
+- **Google Gemini**: Text generation for titles, descriptions, tags, and thumbnail prompts.
+- **OpenRouter (OpenAI-compatible)**: Optional vision-assisted thumbnail search phrase generation.
+- **Cloudflare AI Workers**: Image generation with a configurable Workers AI model and fallback.
 - **ImageKit**: Image upload, storage, and optimization.
 - **Replicate**: Optional AI model integration (e.g., Stable Diffusion for thumbnails).
 - **Axios**: For HTTP requests.
 
 ### Authentication & Others
 - **Clerk**: User authentication and management.
-- **Stripe**: Billing and subscriptions (integrated via Clerk).
+- **Billing Preview**: Plan comparison UI; paid checkout is not required for Basic access.
 - **Moment.js**: Date handling.
 - **Sharp**: Image processing (e.g., resizing thumbnails).
 
@@ -82,7 +84,7 @@ The app includes user authentication, a dashboard, billing integration, and back
    NEON_DB_CONNECTION_STRING=your-neon-db-url
    CLERK_SECRET_KEY=your-clerk-secret
    OPEN_ROUTER_API_KEY=your-openrouter-key
-   CLOUDFLARE_API_KEY=your-cloudflare-key
+   CLOUDFARE_API_KEY=your-cloudflare-key
    CLOUDFLARE_ACCOUNT_ID=your-cloudflare-account-id
    CLOUDFLARE_IMAGE_MODEL=@cf/black-forest-labs/flux-2-klein-4b (optional)
    IMAGEKIT_PUBLIC_KEY=your-imagekit-public
@@ -93,7 +95,12 @@ The app includes user authentication, a dashboard, billing integration, and back
    INNGEST_SIGNING_KEY=your-inngest-key
    INNGEST_SERVER_URL=https://api.inngest.com/v1/events
    GEMINI_API_KEY=your-gemini-key (optional)
+   GEMINI_TEXT_MODEL=gemini-3.5-flash (optional)
+   HUGGING_FACE_ACCESS_TOKEN=your-hugging-face-token (optional)
+   THUMBNAIL_VISION_MODEL=your-openrouter-vision-model (optional)
    ```
+
+   Note: `CLOUDFARE_API_KEY` matches the current environment variable used by the image-generation workflow.
 
 4. Set up the database:
    ```
@@ -139,7 +146,18 @@ The app includes user authentication, a dashboard, billing integration, and back
 4. **Generate Thumbnail**: Provide input, optional reference/user images, and generate AI thumbnails.
 5. **Research Trends**: Choose a region and category to inspect cached trend
    signals inferred from popular-video metadata. Scores are not search volume.
-6. **Billing**: Subscribe to premium plans for advanced features.
+6. **Billing**: Review the Basic plan and preview paid-plan details.
+
+## Design System
+
+The application uses the warm studio design system documented in `design.md`:
+
+- Warm off-white paper surfaces and dark ink typography.
+- One restrained burnt-orange accent for primary actions and active states.
+- Shared tokens in `tokens.css` for color, type, spacing, radius, duration, and easing.
+- Dashboard and tool pages follow a consistent header, panel, and results layout.
+
+When adding new UI, prefer existing tokens and shared classes in `app/globals.css` before introducing page-specific styles.
 
 ## Trending Keywords Data
 
@@ -163,27 +181,19 @@ npm test
 
 ## Screenshots
 
-### Home Page
-![Home Page](./public/HomePage.png)
-*Landing page with hero section and features overview.*
-
-### Dashboard
+### Dashboard Workspace
 ![Dashboard](./public/Dashboard.png)
-*User dashboard showing welcome banner and feature list.*
+*Creator dashboard and tool navigation.*
 
 ### AI Content Generator
-![AI Content Generator](./public/AiContentGenerator.png)
+![AI Content Generator](./public/AiContentGenerator.v2.png)
 *Interface for generating video titles, descriptions, tags, and thumbnails.*
 
 ### AI Thumbnail Generator
-![AI Thumbnail Generator](./public/AiThumbnailGenrator.png)
+![AI Thumbnail Generator](./public/AiThumbnailGenrator.v2.png)
 *Tool for creating custom thumbnails with AI, including upload previews and generated results.*
 
-### Billing Page
-![Billing Page](./public/Billing.png)
-*Subscription plans with features and pricing.*
 
-*(Note: Replace the screenshot paths with actual images from your project. You can add them to a `screenshots/` folder in the repo.)*
 
 ## Contributing
 

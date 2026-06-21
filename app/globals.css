@@ -203,13 +203,21 @@ body {
 
 .home-brand {
   display: inline-flex;
+  min-width: 0;
   min-height: 44px;
+  flex: 1 1 auto;
   align-items: center;
   gap: var(--space-sm);
   white-space: nowrap;
   font-family: var(--font-display);
   font-weight: 700;
   letter-spacing: -0.025em;
+}
+
+.home-brand > span:last-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .home-brand__mark {
@@ -267,6 +275,7 @@ body {
   display: grid;
   width: 44px;
   height: 44px;
+  flex: 0 0 44px;
   place-items: center;
   border: var(--rule-hair) solid var(--color-rule);
   border-radius: var(--radius-sm);
@@ -351,7 +360,7 @@ body {
 }
 
 .home-hero {
-  padding-block: var(--space-3xl) var(--space-4xl);
+  padding-block: var(--space-3xl) var(--space-5xl);
 }
 
 .home-hero__grid {
@@ -362,13 +371,14 @@ body {
 }
 
 .home-hero__copy {
-  max-width: 42rem;
+  max-width: 43rem;
 }
 
 .home-kicker,
 .home-step-label {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: var(--space-xs);
   margin-bottom: var(--space-lg) !important;
   color: var(--color-accent);
@@ -383,7 +393,7 @@ body {
 }
 
 .home-hero h1 {
-  max-width: 13ch;
+  max-width: 11ch;
   font-size: var(--text-display);
   font-weight: 700;
   line-height: 0.98;
@@ -415,7 +425,12 @@ body {
   overflow: hidden;
   border: var(--rule-hair) solid var(--color-rule);
   border-radius: var(--radius-lg);
-  background: var(--color-paper-strong);
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in oklch, var(--color-paper-strong) 86%, var(--color-accent-soft)),
+      var(--color-paper-strong)
+    );
   box-shadow: 0 24px 70px color-mix(in oklch, var(--color-ink) 10%, transparent);
   transition:
     transform var(--dur-medium) var(--ease-out),
@@ -425,7 +440,10 @@ body {
 .home-product-shot img {
   display: block;
   width: 100%;
+  aspect-ratio: 2.14 / 1;
   height: auto;
+  object-fit: cover;
+  object-position: top left;
 }
 
 .home-product-shot figcaption {
@@ -735,6 +753,10 @@ body {
 }
 
 @media (min-width: 60rem) {
+  .home-brand {
+    flex: 0 0 auto;
+  }
+
   .home-nav,
   .home-header__actions {
     display: flex;
@@ -748,7 +770,7 @@ body {
   }
 
   .home-hero__grid {
-    grid-template-columns: minmax(0, 0.82fr) minmax(0, 1.18fr);
+    grid-template-columns: minmax(0, 0.78fr) minmax(0, 1.22fr);
     gap: var(--space-2xl);
   }
 
@@ -800,6 +822,95 @@ body {
 
   .home-footer__meta > p {
     grid-column: auto;
+  }
+}
+
+@media (max-width: 39.98rem) {
+  .home-shell,
+  .home-mobile-menu {
+    width: min(100% - 2rem, 78rem);
+  }
+
+  .home-header {
+    padding-top: var(--space-xs);
+  }
+
+  .home-header__inner {
+    min-height: 3.5rem;
+    border-radius: var(--radius-lg);
+  }
+
+  .home-hero {
+    padding-block: var(--space-2xl) var(--space-3xl);
+  }
+
+  .home-hero h1,
+  .home-section__head h2,
+  .home-tools__intro h2,
+  .home-pricing__copy h2 {
+    max-width: 100%;
+    font-size: 3rem;
+    letter-spacing: -0.032em;
+  }
+
+  .home-hero__lede,
+  .home-section__head > p,
+  .home-tools__intro > p:last-child,
+  .home-pricing__copy > p {
+    font-size: var(--text-base);
+  }
+
+  .home-hero__actions {
+    gap: var(--space-sm);
+  }
+
+  .home-section {
+    padding-block: var(--space-3xl);
+  }
+
+  .home-workflow {
+    gap: var(--space-3xl);
+  }
+
+  .home-product-shot {
+    border-radius: var(--radius-md);
+    box-shadow: 0 16px 42px color-mix(in oklch, var(--color-ink) 8%, transparent);
+  }
+
+  .home-tool-row {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-xs);
+  }
+
+  .home-tool-row > svg:last-child {
+    display: none;
+  }
+
+  .home-price-card {
+    padding: var(--space-lg);
+  }
+
+  .home-footer__statement {
+    font-size: 3rem;
+  }
+}
+
+@media (max-width: 22.5rem) {
+  .home-hero h1,
+  .home-section__head h2,
+  .home-tools__intro h2,
+  .home-pricing__copy h2,
+  .home-footer__statement {
+    font-size: 2.55rem;
+  }
+
+  .home-hero__actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .home-text-link {
+    min-height: 44px;
   }
 }
 

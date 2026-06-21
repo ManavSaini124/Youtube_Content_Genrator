@@ -23,7 +23,7 @@ const workflow = [
     title: "Turn one topic into a complete video brief.",
     description:
       "Generate title options, descriptions, tags, thumbnail prompts, and a ready-to-use visual direction from a single idea.",
-    image: "/AiContentGenerator.png",
+    image: "/AiContentGenerator.v2.png",
     alt: "AI content generator showing generated tags, a thumbnail, and thumbnail prompts",
   },
   {
@@ -31,7 +31,7 @@ const workflow = [
     title: "Build the thumbnail without leaving your workflow.",
     description:
       "Start from a prompt, add a reference image or your own photo, then keep every generated option together for review.",
-    image: "/AiThumbnailGenrator.png",
+    image: "/AiThumbnailGenrator.v2.png",
     alt: "AI thumbnail generator with prompt controls and a generated thumbnail",
   },
   {
@@ -229,7 +229,7 @@ function Hero() {
             <Sparkles aria-hidden="true" />
             A practical AI workspace for YouTube
           </p>
-          <h1>From video idea to publish-ready package.</h1>
+          <h1>Create the next video faster.</h1>
           <p className="home-hero__lede">
             Plan the content, generate the copy, shape the thumbnail, and study
             what is already working without stitching together five different tools.
@@ -248,8 +248,8 @@ function Hero() {
           <Image
             src="/Dashboard.png"
             alt="Imagine and Build dashboard with YouTube creator tools"
-            width={1875}
-            height={865}
+            width={1901}
+            height={968}
             priority
             sizes="(min-width: 960px) 58vw, 100vw"
           />
@@ -382,7 +382,7 @@ function Footer() {
               GitHub
             </a>
           </div>
-          <p>© {new Date().getFullYear()} Imagine &amp; Build</p>
+          <p>&copy; {new Date().getFullYear()} Imagine &amp; Build</p>
         </div>
       </div>
     </footer>

@@ -1,8 +1,8 @@
 {
-  "date": "2026-06-14",
-  "font_stack": "Inter via next/font; replaced on homepage with Bricolage Grotesque and IBM Plex Sans",
-  "palette": "HSL Shadcn variables with orange, brown, and cyan legacy utilities",
-  "motion": "Framer Motion installed",
-  "spacing": "Tailwind default spacing scale",
-  "framework": "Next.js 15 app router with Tailwind CSS 3 and Shadcn UI"
+  "date": "2026-06-21",
+  "font_stack": "Segoe UI Variable Display/Text via tokens.css",
+  "palette": "Warm studio OKLCH semantic tokens in tokens.css",
+  "motion": "Framer Motion installed; homepage uses CSS state feedback",
+  "spacing": "Shared --space-* token scale in tokens.css",
+  "framework": "Next.js 15 app router with Tailwind CSS 3 and shadcn/ui"
 }
