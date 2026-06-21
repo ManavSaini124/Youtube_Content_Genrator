@@ -17,7 +17,7 @@ const features = [
     id: 1,
     name: "Thumbnail generator",
     description: "Create a thumbnail from a prompt, reference image, or your own photo.",
-    image: "/Feature1.png",
+    image: "/features/FT1.png",
     path: "/ai-thumbnail-generator",
     icon: ImageIcon,
     status: "Ready",
@@ -26,7 +26,7 @@ const features = [
     id: 2,
     name: "Thumbnail search",
     description: "Search visual references and find a useful direction faster.",
-    image: "/Feature2.png",
+    image: "/features/FT2.png",
     path: "/thumbnail-search",
     icon: Search,
     status: "Ready",
@@ -35,7 +35,7 @@ const features = [
     id: 3,
     name: "Content generator",
     description: "Generate titles, descriptions, tags, and thumbnail prompts.",
-    image: "/Feature3.png",
+    image: "/features/FT3.png",
     path: "/ai-content-generator",
     icon: FileText,
     status: "Ready",
@@ -44,7 +44,7 @@ const features = [
     id: 4,
     name: "Outlier finder",
     description: "Inspect videos that outperform a channel's usual baseline.",
-    image: "/Feature4.png",
+    image: "/features/FT4.png",
     path: "/outlier",
     icon: Gauge,
     status: "Ready",
@@ -53,7 +53,7 @@ const features = [
     id: 5,
     name: "Video optimizer",
     description: "A guided optimization workflow for videos before publishing.",
-    image: "/Feature5.png",
+    image: "/features/FT5.png",
     path: "/coming-soon",
     icon: BarChart3,
     status: "Coming soon",
@@ -61,11 +61,11 @@ const features = [
   {
     id: 6,
     name: "Trending keywords",
-    description: "Discover useful keyword directions for upcoming content.",
-    image: "/Feature6.jpeg",
-    path: "/coming-soon",
+    description: "Find trend signals inferred from the current popular-video chart.",
+    image: "/features/Ft6.png",
+    path: "/trending-keywords",
     icon: Sparkles,
-    status: "Coming soon",
+    status: "Ready",
   },
 ]
 
@@ -101,14 +101,14 @@ function FeatureList() {
               />
             </div>
             <div className="dashboard-tool-card__body">
-              <div className="dashboard-tool-card__meta">
+              {/* <div className="dashboard-tool-card__meta">
                 <feature.icon aria-hidden="true" />
                 <span data-status={feature.status === "Ready" ? "ready" : "soon"}>
                   {feature.status}
                 </span>
-              </div>
-              <h3>{feature.name}</h3>
-              <p>{feature.description}</p>
+              </div> */}
+              <h3 className="dashboard-tool-card__name">{feature.name}</h3>
+              <p className="dashboard-tool-card__description">{feature.description}</p>
               <span className="dashboard-tool-card__action">
                 {feature.status === "Ready" ? "Open tool" : "View details"}
                 <ArrowUpRight aria-hidden="true" />

@@ -44,8 +44,28 @@ const createThumbnailPrompt = (userInput: string) =>
 
 async function generateThumbnailConcept(
   userInput: string,
-  referenceImageUrl?: string | null
+  referenceImageUrl?: string | null,
+  userImageUrl?: string | null
 ): Promise<ThumbnailConcept> {
+  const imageInputs: Array<{
+    type: "image_url";
+    image_url: { url: string };
+  }> = [];
+
+  if (referenceImageUrl) {
+    imageInputs.push({
+      type: "image_url",
+      image_url: { url: referenceImageUrl },
+    });
+  }
+
+  if (userImageUrl) {
+    imageInputs.push({
+      type: "image_url",
+      image_url: { url: userImageUrl },
+    });
+  }
+
   const completion = await openai.chat.completions.create({
     model: AiModelForThumbnail,
     response_format: { type: "json_object" },
@@ -75,14 +95,10 @@ The prompt must describe a complete visual story rather than a face:
 - Make it understandable at phone size with one focal story and no tiny details.
 - Do not include text, letters, logos, watermarks, UI, collage, split screen, arrows, circles, or generic stock imagery.
 - Avoid generic phrases unless followed by concrete visual details.
-${referenceImageUrl ? "- Match the reference image's visual style and color treatment, but improve its story and composition." : ""}`,
+${referenceImageUrl ? "- Match the reference image's visual style and color treatment, but improve its story and composition." : ""}
+${userImageUrl ? "- If a creator portrait is supplied, use it only as identity/reference material. Avoid a static headshot." : ""}`,
           },
-          ...(referenceImageUrl
-            ? [{
-              type: "image_url" as const,
-              image_url: { url: referenceImageUrl },
-            }]
-            : []),
+          ...imageInputs,
         ],
       },
     ],
@@ -430,10 +446,17 @@ export const GenrateAiThumbnail = inngest.createFunction(
   { id: "ai/generate-thumbnail" },
   { event: "ai/generate-thumbnail" },
   async ({ event, step }) => {
-    const { userInput, referenceImage, userEmail } = await event.data;
+    const {
+      userInput,
+      referenceImage,
+      referenceImageUrl,
+      userImageUrl,
+      userEmail,
+    } = await event.data;
 
-    // Upload reference image to cloud
-    const uploadImageUrls = referenceImage
+    // New events pass URLs so the Inngest payload stays below its size limit.
+    // This fallback only supports older queued events that still contain base64 data.
+    const uploadImageUrls = referenceImageUrl || (referenceImage
       ? await step.run(
         "UploadImage",
         async () => {
@@ -446,13 +469,14 @@ export const GenrateAiThumbnail = inngest.createFunction(
           return refernceImageUrl.url
         }
       )
-      : null;
+      : null);
 
     const thumbnailConcept = await step.run(
       "plan-thumbnail-concept",
       async () => generateThumbnailConcept(
         String(userInput ?? ""),
-        uploadImageUrls
+        uploadImageUrls,
+        userImageUrl
       )
     );
 
@@ -474,15 +498,18 @@ export const GenrateAiThumbnail = inngest.createFunction(
       const result = await db.insert(AiThumbnail).values({
         userInput: userInput,
         thumbnailUrl: uploadThumbnail,
-        refImage: uploadImageUrls,
+        refImage: uploadImageUrls || userImageUrl,
         userEmail: userEmail,
         createdAt: moment().format('YYYY-MM-DD')
       }).returning()
 
-      return result;
+      return result[0];
     })
 
-    return saveThumbnail;
+    return {
+      ...saveThumbnail,
+      thumbnailUrl: uploadThumbnail,
+    };
   },
 )
 
@@ -544,7 +571,7 @@ export const GenrateAiContent = inngest.createFunction(
         }).returning()
 
         console.log("result -from saveContent --------------------", result)
-        return result;
+        return result[0];
       }
     )
 

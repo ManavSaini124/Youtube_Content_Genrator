@@ -26,11 +26,77 @@ export type GeneratedContent = {
 }
 
 export type Content = {
-  id: string
+  id: string | number
   thumbnailUrl: string
   content: GeneratedContent
   userInput: string
   createdAt: string
+}
+
+const isGeneratedContentResult = (value: unknown): value is Content =>
+  Boolean(
+    value &&
+      typeof value === "object" &&
+      "content" in value &&
+      "thumbnailUrl" in value,
+  )
+
+const getCompletedContent = (output: unknown, depth = 0): Content | null => {
+  if (depth > 8) return null
+
+  if (typeof output === "string") {
+    const trimmed = output.trim()
+    if (!trimmed) return null
+
+    if (trimmed.startsWith("{") || trimmed.startsWith("[")) {
+      try {
+        return getCompletedContent(JSON.parse(trimmed), depth + 1)
+      } catch {
+        return null
+      }
+    }
+
+    return null
+  }
+
+  if (Array.isArray(output)) {
+    for (const item of output) {
+      const content = getCompletedContent(item, depth + 1)
+      if (content) return content
+    }
+    return null
+  }
+
+  if (!output || typeof output !== "object") return null
+
+  if (isGeneratedContentResult(output)) return output
+
+  const record = output as Record<string, unknown>
+  for (const key of ["output", "data", "result", "body"]) {
+    const content = getCompletedContent(record[key], depth + 1)
+    if (content) return content
+  }
+
+  return null
+}
+
+const findSavedContent = async (
+  userInput: string,
+  signal: AbortSignal,
+): Promise<Content | null> => {
+  const response = await fetch("/api/ai-content-generator", {
+    cache: "no-store",
+    signal,
+  })
+  if (!response.ok) return null
+
+  const contents = await response.json()
+  if (!Array.isArray(contents)) return null
+
+  return (contents as Content[])
+    .filter((item) => item.userInput?.trim() === userInput)
+    .sort((first, second) => Number(second.id) - Number(first.id))
+    .find(isGeneratedContentResult) ?? null
 }
 
 export default function AiContentGenerator() {
@@ -39,6 +105,7 @@ export default function AiContentGenerator() {
   const [content, setContent] = useState<Content | null>(null)
   const [error, setError] = useState("")
   const [eventId, setEventId] = useState<string | null>(null)
+  const [submittedBrief, setSubmittedBrief] = useState("")
 
   const isGenerating = useRef(false)
   const pollTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -53,6 +120,7 @@ export default function AiContentGenerator() {
     setError("")
     setContent(null)
     setEventId(null)
+    setSubmittedBrief(brief.trim())
 
     try {
       const result = await axios.post("/api/ai-content-generator", {
@@ -63,15 +131,29 @@ export default function AiContentGenerator() {
       setEventId(result.data.runId)
     } catch (requestError) {
       console.error("Error starting content generation:", requestError)
-      setError("We could not start your content kit. Check your connection and try again.")
+      setError(
+        axios.isAxiosError(requestError)
+          ? requestError.response?.data?.error ||
+              "We could not start your content kit. Check your connection and try again."
+          : requestError instanceof Error
+            ? requestError.message
+            : "We could not start your content kit. Check your connection and try again.",
+      )
       setLoading(false)
       isGenerating.current = false
     }
   }
 
   useEffect(() => {
+    const topic = new URL(window.location.href).searchParams.get("topic")?.trim()
+    if (topic) setBrief((current) => current || topic)
+  }, [])
+
+  useEffect(() => {
     if (!eventId) return
     let active = true
+    let completedWithoutContentCount = 0
+    const savedContentInput = submittedBrief
 
     const finishWithError = (message: string) => {
       if (!active) return
@@ -93,9 +175,23 @@ export default function AiContentGenerator() {
         const status = data.status?.[0]
         if (status?.status === "Completed") {
           if (!active) return
-          const generatedContent = status.output?.[0]
-          if (!generatedContent?.content) {
-            finishWithError("The job finished without content. Please try again.")
+          const outputContent = getCompletedContent(status.output)
+          const savedContent = outputContent
+            ? null
+            : await findSavedContent(
+              savedContentInput,
+              pollAbortRef.current.signal,
+            )
+          const generatedContent = outputContent || savedContent
+
+          if (!generatedContent) {
+            completedWithoutContentCount += 1
+            if (completedWithoutContentCount < 8) {
+              if (active) pollTimeoutRef.current = setTimeout(pollRunStatus, 1000)
+              return
+            }
+
+            finishWithError("The content was saved, but the preview could not load it yet. Refresh and try again.")
             return
           }
 
@@ -116,7 +212,11 @@ export default function AiContentGenerator() {
           return
         }
         console.error("Error fetching content run status:", pollError)
-        finishWithError("We lost contact with the generation job. Please try again.")
+        finishWithError(
+          pollError instanceof Error
+            ? pollError.message
+            : "We lost contact with the generation job. Please try again.",
+        )
       }
     }
 
@@ -127,7 +227,7 @@ export default function AiContentGenerator() {
       pollAbortRef.current?.abort()
       if (pollTimeoutRef.current) clearTimeout(pollTimeoutRef.current)
     }
-  }, [eventId])
+  }, [eventId, submittedBrief])
 
   return (
     <div className="dashboard-page content-page">

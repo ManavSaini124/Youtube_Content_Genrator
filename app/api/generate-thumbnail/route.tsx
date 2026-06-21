@@ -2,57 +2,84 @@
 import { db } from "@/configs/db";
 import { AiThumbnail } from "@/configs/schema";
 import { inngest } from "@/inngest/client";
+import { getInngestUnavailableMessage } from "@/inngest/config";
 import { currentUser } from "@clerk/nextjs/server";
 import { desc, eq } from "drizzle-orm";
+import ImageKit from "imagekit";
 import { NextRequest, NextResponse } from "next/server";
 
-export async function POST(req:NextRequest) {
+const imageKit = new ImageKit({
+    publicKey: process.env.IMAGEKIT_PUBLIC_KEY as string,
+    privateKey: process.env.IMAGEKIT_PRIVATE_KEY as string,
+    urlEndpoint: process.env.IMAGEKIT_URL_ENDPOINT as string,
+})
+
+export async function POST(req: NextRequest) {
     const formData = await req.formData();
-    const referenceImage = formData.get('referenceImage') as File | null;
-    const userImage = formData.get('userImage') as File | null;
-    const userInput = formData.get('userInput');
+    const referenceImage = getImageFile(formData.get('referenceImage'));
+    const userImage = getImageFile(formData.get('userImage'));
+    const userInput = String(formData.get('userInput') || '').trim();
     const user = await currentUser();
-    console.log(formData)
 
-    console.log('referenceImage:', referenceImage);
-    console.log('userImage:', userImage);
-
-    const inputData = {
-        userInput: userInput,
-        referenceImage: referenceImage? await getFileBuffer(referenceImage): null,
-        userImage: userImage? await getFileBuffer(userImage): null,
-        userEmail: user?.primaryEmailAddress?.emailAddress,
+    if (!userInput) {
+        return NextResponse.json(
+            { error: "Please describe the thumbnail you want to generate." },
+            { status: 400 },
+        );
     }
 
-    const result = await inngest.send({
-        name: "ai/generate-thumbnail",
-        data: inputData
-    });
+    try {
+        const [referenceImageUrl, userImageUrl] = await Promise.all([
+            referenceImage ? uploadImage(referenceImage, "reference") : Promise.resolve(null),
+            userImage ? uploadImage(userImage, "creator") : Promise.resolve(null),
+        ]);
 
-    return NextResponse.json({ runId: result.ids[0] })
+        const result = await inngest.send({
+            name: "ai/generate-thumbnail",
+            data: {
+                userInput,
+                referenceImageUrl,
+                userImageUrl,
+                userEmail: user?.primaryEmailAddress?.emailAddress,
+            }
+        });
+        const runId = result.ids[0];
+
+        if (!runId) {
+            throw new Error("Inngest did not return an event ID.");
+        }
+
+        return NextResponse.json({ runId });
+    } catch (error) {
+        console.error("Unable to dispatch thumbnail generation:", {
+            error: error instanceof Error ? error.message : String(error),
+        });
+        return NextResponse.json(
+            { error: getInngestUnavailableMessage() },
+            { status: 503 },
+        );
+    }
 }
 
-/**
- * Converts a File object to a JSON object that can be sent over HTTP,
- * with the file's contents encoded as a base64 string.
- *
- * @param {File} file The file to convert.
- * @returns {Promise<{name: string; type: string; size: number; buffer: string}>} A promise
- * that resolves to an object with the file's name, type, size, and
- * contents encoded as a base64 string.
- */
-const getFileBuffer = async(file:File)=>{
+const getImageFile = (value: FormDataEntryValue | null) => {
+    if (!value || typeof value === "string") return null;
+    if (!["image/jpeg", "image/png"].includes(value.type)) return null;
+    return value;
+}
+
+const uploadImage = async (file: File, kind: "reference" | "creator") => {
     const bytes = await file.arrayBuffer();
     const buffer = Buffer.from(bytes);
+    const safeName = file.name.replace(/[^\w.-]/g, "_") || `${kind}.png`;
+    const uploaded = await imageKit.upload({
+        file: buffer,
+        fileName: `${Date.now()}-${kind}-${safeName}`,
+        folder: "/thumbnail-inputs",
+        isPublished: true,
+        useUniqueFileName: true,
+    });
 
-    
-
-    return {
-        name: file.name,
-        type: file.type,
-        size: file.size,
-        buffer: buffer.toString('base64')
-    }
+    return uploaded.url;
 }
 
 export async function GET(req:NextRequest) {
@@ -65,7 +92,7 @@ export async function GET(req:NextRequest) {
             //@ts-ignore
             eq(AiThumbnail.userEmail, user?.primaryEmailAddress?.emailAddress)
         )
-        .orderBy(desc(AiThumbnail.createdAt))
+        .orderBy(desc(AiThumbnail.createdAt), desc(AiThumbnail.id))
 
     console.log('result:', result)
 

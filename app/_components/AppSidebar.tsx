@@ -22,6 +22,7 @@ import {
   Home,
   ImageIcon,
   Lightbulb,
+  TrendingUp,
   Settings,
 } from "lucide-react"
 import { usePathname } from "next/navigation"
@@ -33,6 +34,7 @@ const workspaceItems = [
   { title: "Thumbnail generator", url: "/ai-thumbnail-generator", icon: ImageIcon },
   { title: "Thumbnail search", url: "/thumbnail-search", icon: GalleryThumbnails },
   { title: "Outlier finder", url: "/outlier", icon: Gauge },
+  { title: "Trending keywords", url: "/trending-keywords", icon: TrendingUp },
   { title: "Optimize", url: "/coming-soon", icon: ChartNoAxesColumn },
 ]
 

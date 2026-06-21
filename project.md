@@ -2,6 +2,22 @@
 
 Last researched: June 14, 2026
 
+## Implementation Status
+
+Updated: June 15, 2026
+
+- Phase 1 is implemented: popular-chart collection, deterministic extraction,
+  scoring, one-hour caching, stale fallback, evidence videos, filters,
+  navigation, content-generator handoff, and unit tests.
+- Phase 2 is implemented in code: Neon snapshot storage, measured view-delta
+  velocity, acceleration and slowdown indicators, 30-day retention, and
+  24-hour/7-day mini charts.
+- The additive migration in `drizzle/0000_sad_hardball.sql` must be applied to
+  the existing Neon database with `npm run db:migrate` before historical
+  momentum can persist. Until then, the feature continues using the Phase 1
+  fallback without failing the page.
+- Phase 3 niche discovery and Phase 4 source upgrades remain pending.
+
 ## 1. Decision
 
 Build the first version from the **official YouTube Data API v3** that the

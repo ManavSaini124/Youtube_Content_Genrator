@@ -10,6 +10,7 @@ const pageNames: Record<string, string> = {
   "/thumbnail-search": "Thumbnail search",
   "/outlier": "Outlier finder",
   "/ai-content-generator": "Content generator",
+  "/trending-keywords": "Trending keywords",
   "/billing": "Billing",
   "/coming-soon": "Coming soon",
 }

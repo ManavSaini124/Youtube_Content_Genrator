@@ -1,48 +1,82 @@
+import { getInngestRunsConfig } from "@/inngest/config";
+
+export class InngestStatusError extends Error {
+  constructor(
+    message: string,
+    public readonly status: number,
+    public readonly code: string,
+  ) {
+    super(message);
+    this.name = "InngestStatusError";
+  }
+}
+
 export const RunStatus = async (id: string) => {
+  const { isDev, eventsUrl } = await getInngestRunsConfig();
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 10_000);
+
   try {
-    const isDevelopment = process.env.NODE_ENV !== "production";
-    const configuredUrl = isDevelopment
-      ? process.env.INNGEST_DEVSERVER_URL || "http://127.0.0.1:8288"
-      : process.env.INNGEST_SERVER_URL;
-
-    if (!configuredUrl) {
-      throw new Error("INNGEST_SERVER_URL is not configured");
-    }
-
-    const normalizedUrl = configuredUrl.replace(/\/$/, "");
-    const baseUrl = normalizedUrl.endsWith("/v1/events")
-      ? normalizedUrl
-      : `${normalizedUrl}/v1/events`;
-
     const headers: HeadersInit = {
       "Content-Type": "application/json",
     };
 
-    if (!isDevelopment) {
+    if (!isDev) {
       if (!process.env.INNGEST_SIGNING_KEY) {
-        throw new Error("INNGEST_SIGNING_KEY is not configured");
+        throw new InngestStatusError(
+          "Inngest status polling is not configured.",
+          503,
+          "INNGEST_NOT_CONFIGURED",
+        );
       }
 
       headers.Authorization = `Bearer ${process.env.INNGEST_SIGNING_KEY}`;
     }
 
-    const response = await fetch(`${baseUrl}/${id}/runs`, {
-      headers,
-      cache: "no-store",
-    });
-    const json = await response.json();
+    const response = await fetch(
+      `${eventsUrl}/${encodeURIComponent(id)}/runs`,
+      {
+        headers,
+        cache: "no-store",
+        signal: controller.signal,
+      },
+    );
+    const json = await response.json().catch(() => null);
 
-    // The Dev Server can report API errors in a successful HTTP response.
-    if (!response.ok || json.error) {
-      throw new Error(
-        `Inngest API error: ${json.status || response.status} ${json.error || "Unknown error"}`
+    if (!response.ok || json?.error) {
+      throw new InngestStatusError(
+        json?.error || "Failed to fetch generation status.",
+        response.status >= 400 ? response.status : 502,
+        "INNGEST_STATUS_ERROR",
       );
     }
 
-    console.log("Inngest run status response:", json);
-    return json.data; // Returns array of runs for the event
+    return json?.data ?? [];
   } catch (error) {
-    console.error("Error fetching run status:", error);
-    throw error;
+    if (error instanceof InngestStatusError) {
+      throw error;
+    }
+
+    const isTimeout =
+      error instanceof Error &&
+      (error.name === "AbortError" || error.name === "TimeoutError");
+    const message = isDev
+      ? "The local Inngest Dev Server is not running. Start it with `npm run inngest`."
+      : isTimeout
+        ? "The generation status request timed out. Please try again."
+        : "The generation service is temporarily unavailable. Please try again.";
+
+    console.error("Unable to fetch Inngest run status:", {
+      mode: isDev ? "local" : "cloud",
+      error: error instanceof Error ? error.message : String(error),
+    });
+
+    throw new InngestStatusError(
+      message,
+      503,
+      isDev ? "INNGEST_DEV_UNAVAILABLE" : "INNGEST_UNAVAILABLE",
+    );
+  } finally {
+    clearTimeout(timeout);
   }
 };

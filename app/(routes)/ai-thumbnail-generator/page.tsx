@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
-import type { ChangeEvent, FormEvent } from "react"
+import type { ChangeEvent, FormEvent, KeyboardEvent } from "react"
 import Image from "next/image"
 import {
   ArrowUpRight,
@@ -19,6 +19,12 @@ import ThumbnailList from "./_components/ThumbnailList"
 
 type UploadKind = "reference" | "portrait"
 
+type SavedThumbnail = {
+  id: number
+  thumbnailUrl?: string | null
+  userInput?: string | null
+}
+
 type UploadFieldProps = {
   accept: string
   description: string
@@ -28,6 +34,68 @@ type UploadFieldProps = {
   preview: string
   onChange: (event: ChangeEvent<HTMLInputElement>) => void
   onRemove: () => void
+}
+
+const getCompletedThumbnailUrl = (output: unknown, depth = 0): string => {
+  if (depth > 8) return ""
+  if (typeof output === "string") {
+    const trimmed = output.trim()
+    if (!trimmed) return ""
+
+    if (trimmed.startsWith("{") || trimmed.startsWith("[")) {
+      try {
+        return getCompletedThumbnailUrl(JSON.parse(trimmed), depth + 1)
+      } catch {
+        return trimmed
+      }
+    }
+
+    return trimmed
+  }
+
+  if (Array.isArray(output)) {
+    for (const item of output) {
+      const url = getCompletedThumbnailUrl(item, depth + 1)
+      if (url) return url
+    }
+    return ""
+  }
+
+  if (!output || typeof output !== "object") return ""
+
+  const record = output as Record<string, unknown>
+  for (const key of ["thumbnailUrl", "imageUrl", "url"]) {
+    const value = record[key]
+    if (typeof value === "string") return value
+  }
+
+  for (const key of ["output", "data", "result", "body"]) {
+    const url = getCompletedThumbnailUrl(record[key], depth + 1)
+    if (url) return url
+  }
+
+  return ""
+}
+
+const findSavedThumbnailUrl = async (
+  userInput: string,
+  signal: AbortSignal,
+): Promise<string> => {
+  const response = await fetch("/api/generate-thumbnail", {
+    cache: "no-store",
+    signal,
+  })
+  if (!response.ok) return ""
+
+  const thumbnails = await response.json()
+  if (!Array.isArray(thumbnails)) return ""
+
+  const matchingThumbnail = (thumbnails as SavedThumbnail[])
+    .filter((thumbnail) => thumbnail.userInput?.trim() === userInput)
+    .sort((first, second) => second.id - first.id)
+    .find((thumbnail) => thumbnail.thumbnailUrl)
+
+  return matchingThumbnail?.thumbnailUrl ?? ""
 }
 
 function UploadField({
@@ -93,6 +161,7 @@ export default function AiThumbnailGenerator() {
   const [eventId, setEventId] = useState<string | null>(null)
   const [error, setError] = useState("")
   const [historyVersion, setHistoryVersion] = useState(0)
+  const [submittedBrief, setSubmittedBrief] = useState("")
 
   const isGenerating = useRef(false)
   const pollTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -143,6 +212,7 @@ export default function AiThumbnailGenerator() {
     setError("")
     setOutputUrl("")
     setEventId(null)
+    setSubmittedBrief(brief.trim())
 
     try {
       const formData = new FormData()
@@ -155,15 +225,33 @@ export default function AiThumbnailGenerator() {
       setEventId(result.data.runId)
     } catch (requestError) {
       console.error("Thumbnail generation failed:", requestError)
-      setError("We could not start this thumbnail. Check your connection and try again.")
+      setError(
+        axios.isAxiosError(requestError)
+          ? requestError.response?.data?.error ||
+              "We could not start this thumbnail. Check your connection and try again."
+          : requestError instanceof Error
+            ? requestError.message
+            : "We could not start this thumbnail. Check your connection and try again.",
+      )
       setLoading(false)
       isGenerating.current = false
     }
   }
 
+  const onBriefKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
+    if (event.key !== "Enter" || event.shiftKey || event.nativeEvent.isComposing) {
+      return
+    }
+
+    event.preventDefault()
+    event.currentTarget.form?.requestSubmit()
+  }
+
   useEffect(() => {
     if (!eventId) return
     let active = true
+    let completedWithoutImageCount = 0
+    const savedThumbnailInput = submittedBrief
 
     const finishWithError = (message: string) => {
       if (!active) return
@@ -185,13 +273,27 @@ export default function AiThumbnailGenerator() {
         const status = data.status?.[0]
         if (status?.status === "Completed") {
           if (!active) return
-          const output = status.output?.[0]
-          const thumbnailUrl = output?.thumbnailUrl || output
-          if (!thumbnailUrl) {
-            finishWithError("The job finished without an image. Please try again.")
+          const thumbnailUrl = getCompletedThumbnailUrl(status.output)
+          const savedThumbnailUrl = thumbnailUrl
+            ? ""
+            : await findSavedThumbnailUrl(
+              savedThumbnailInput,
+              pollAbortRef.current.signal,
+            )
+          const completedThumbnailUrl = thumbnailUrl || savedThumbnailUrl
+
+          if (!completedThumbnailUrl) {
+            completedWithoutImageCount += 1
+            if (completedWithoutImageCount < 8) {
+              if (active) pollTimeoutRef.current = setTimeout(pollRunStatus, 1000)
+              return
+            }
+
+            finishWithError("The thumbnail was saved, but the preview could not load it yet. Refresh the library and try again.")
             return
           }
-          setOutputUrl(thumbnailUrl)
+
+          setOutputUrl(completedThumbnailUrl)
           setLoading(false)
           setHistoryVersion((version) => version + 1)
           isGenerating.current = false
@@ -209,7 +311,11 @@ export default function AiThumbnailGenerator() {
           return
         }
         console.error("Error polling thumbnail run status:", pollError)
-        finishWithError("We lost contact with the generation job. Please try again.")
+        finishWithError(
+          pollError instanceof Error
+            ? pollError.message
+            : "We lost contact with the generation job. Please try again.",
+        )
       }
     }
 
@@ -220,7 +326,7 @@ export default function AiThumbnailGenerator() {
       pollAbortRef.current?.abort()
       if (pollTimeoutRef.current) clearTimeout(pollTimeoutRef.current)
     }
-  }, [eventId])
+  }, [eventId, submittedBrief])
 
   useEffect(() => {
     return () => {
@@ -260,12 +366,13 @@ export default function AiThumbnailGenerator() {
               id="thumbnail-brief"
               value={brief}
               onChange={(event) => setBrief(event.target.value)}
+              onKeyDown={onBriefKeyDown}
               placeholder="Example: A dramatic before-and-after desk setup, warm lighting, surprised expression, text: $50 vs $5,000"
               maxLength={600}
               required
             />
             <div className="thumbnail-field__meta">
-              <span>Be specific about mood, subject, composition, and text.</span>
+              <span>Press Enter to generate. Use Shift+Enter for a new line.</span>
               <span>{brief.length}/600</span>
             </div>
           </div>
@@ -306,7 +413,7 @@ export default function AiThumbnailGenerator() {
               disabled={loading || !brief.trim()}
               className="thumbnail-generate-button"
             >
-              {loading ? <Loader2 className="animate-spin" /> : <Sparkles />}
+              {loading ? <Loader2 className="animate-spin" /> : ""}
               {loading ? "Creating thumbnail..." : "Generate thumbnail"}
             </Button>
           </div>

@@ -12,7 +12,7 @@ const WelcomeBanner = () => {
     <section className="dashboard-welcome">
       <div className="dashboard-welcome__copy">
         <p className="dashboard-eyebrow">
-          <Sparkles aria-hidden="true" />
+          {/* <Sparkles aria-hidden="true" /> */}
           Creator workspace
         </p>
         <h1>Welcome back, {firstName}.</h1>
